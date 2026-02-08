@@ -24,11 +24,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-
+import com.ricca.futacollector.viewmodel.CollectionViewModel
 
 
 @Composable
-fun SearchScreen() {
+fun SearchScreen(
+    viewModel: CollectionViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+) {
 
     var searchQuery by remember { mutableStateOf("") }
     var cards by remember { mutableStateOf<List<ApiCard>>(emptyList()) }
@@ -173,13 +175,14 @@ fun SearchScreen() {
             selectedCard?.let { card ->
                 Dialog(
                     onDismissRequest = { selectedCard = null },
-                    properties = DialogProperties(
-                        usePlatformDefaultWidth = false // Permette alla card di allargarsi
-                    )
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
                 ) {
                     CardDetailScreen(
                         card = card,
-                        onAddToCollection = { /* per ora niente */ }
+                        onAddToCollection = {
+                            viewModel.addCardToCollection(card) // CHIAMA IL MAGGIORDOMO!
+                            selectedCard = null // Chiude il popup dopo aver aggiunto
+                        }
                     )
                 }
             }

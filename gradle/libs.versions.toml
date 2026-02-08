@@ -11,6 +11,8 @@ composeBom = "2024.09.00"
 coil = "2.5.0"
 foundation = "1.10.2"
 roomCommonJvm = "2.8.4"
+room = "2.6.1"
+ksp = "2.0.21-1.0.26"
 
 
 [libraries]
@@ -36,7 +38,8 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomCommonJvm" }
 
 
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-
+google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
