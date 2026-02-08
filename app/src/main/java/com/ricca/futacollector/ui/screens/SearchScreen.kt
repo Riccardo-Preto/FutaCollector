@@ -73,7 +73,7 @@ fun SearchScreen() {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // permette alla LazyColumn di occupare spazio corretto
+                    .weight(1f)
             ) {
                 items(sets) { set ->
                     Text(
@@ -81,10 +81,21 @@ fun SearchScreen() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
-                            .clickable { /* per ora niente funzionalità */ }
+                            .clickable {
+                                coroutineScope.launch {
+                                    try {
+                                        cards = RetrofitInstance.api.getCardsBySet(set.card_id)
+                                            .sortedBy { it.card_set_id } // ordina per numero seriale
+                                        searchQuery = set.name // opzionale, puoi anche lasciare vuoto
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            }
                     )
                 }
             }
+
         } else {
             // ---------- Griglia risultati ricerca ----------
             LazyVerticalGrid(
@@ -106,19 +117,35 @@ fun SearchScreen() {
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            // Placeholder con nome e codice
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
+                                    .padding(4.dp)
+                                    .fillMaxWidth()
+                                    .aspectRatio(0.7f)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "${card.card_name}\n${card.card_name}", // o usa card_id se vuoi
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                                if (!card.card_image.isNullOrEmpty()) {
+                                    Image(
+                                        painter = rememberAsyncImagePainter(card.card_image),
+                                        contentDescription = card.card_name,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Text(
+                                        text = buildString {
+                                            appendLine("Nome: ${card.card_name}")
+                                            appendLine("Set: ${card.set_name}")
+                                            appendLine("ID: ${card.card_set_id}")
+                                            card.inventory_price?.let { appendLine("Inventario: $it€") }
+                                            card.market_price?.let { appendLine("Mercato: $it€") }
+                                        },
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
+
                         }
                     }
                 }

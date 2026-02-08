@@ -25,4 +25,9 @@ interface CardApiService {
         @Query("card_name") cardName: String
     ): List<ApiCard>
 
+    @GET("sets/{set_id}/")
+    suspend fun getCardsBySet(
+        @retrofit2.http.Path("set_id") setId: String
+    ): List<ApiCard>
+
 }
