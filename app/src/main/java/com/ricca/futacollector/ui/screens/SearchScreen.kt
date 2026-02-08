@@ -2,6 +2,7 @@ package com.ricca.futacollector.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,8 +21,13 @@ import com.ricca.futacollector.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ricca.futacollector.viewmodel.CollectionViewModel
@@ -127,45 +133,74 @@ fun SearchScreen(
                 contentPadding = PaddingValues(4.dp)
             ) {
                 items(cards) { card ->
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .padding(4.dp)
+                            .padding(6.dp)
                             .fillMaxWidth()
-                            .aspectRatio(0.7f)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp))
-                            .shadow(4.dp, shape = RoundedCornerShape(8.dp))
-                            .clickable { selectedCard = card },
-                        contentAlignment = Alignment.Center
-                    )
-                    {
-                        if (!card.card_image.isNullOrEmpty()) {
-                            Image(
-                                painter = rememberAsyncImagePainter(card.card_image),
-                                contentDescription = card.card_name,
-                                modifier = Modifier.fillMaxSize()
+                            // Cornice esterna principale scura e più spessa
+                            .border(
+                                width = 2.dp, // Più spessa
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f), // Più scura
+                                shape = RoundedCornerShape(10.dp)
                             )
-                        } else {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                // Sfondo grigio chiaro
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.Gray.copy(alpha = 0.3f))
+                            .shadow(2.dp, shape = RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(10.dp)) // Importante: taglia tutto ciò che esce
+                            .clickable { selectedCard = card },
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // 1. BOX IMMAGINE: Tocca i bordi sopra e ai lati
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(0.7f)
+                        ) {
+                            if (!card.card_image.isNullOrEmpty()) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(card.card_image),
+                                    contentDescription = card.card_name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
                                 )
-                                Text(
-                                    text = buildString {
-                                        appendLine(card.card_name)
-                                        appendLine(card.card_set_id)
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .background(Color.Black.copy(alpha = 0.5f))
-                                        .padding(4.dp),
-                                    color = Color.White
-                                )
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize().background(Color.Gray.copy(alpha = 0.2f)))
                             }
+                        }
 
+                        // 2. LINEA DI SEPARAZIONE SCURA (La base della cornice dell'immagine)
+                        HorizontalDivider(
+                            thickness = 2.dp, // Stesso spessore della cornice esterna
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+
+                        // 3. BOX TESTO
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(38.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)), // Leggero stacco di colore
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = card.card_name,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = card.card_set_id,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 8.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1
+                            )
                         }
                     }
                 }
