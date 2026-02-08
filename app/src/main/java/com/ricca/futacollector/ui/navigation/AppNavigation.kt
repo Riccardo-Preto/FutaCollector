@@ -28,7 +28,9 @@ sealed class Screen(
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    darkTheme: Boolean,
+    onDarkThemeToggle: (Boolean) -> Unit) {
 
     val navController = rememberNavController()
 
@@ -48,7 +50,10 @@ fun AppNavigation() {
             }
             composable(Screen.Search.route) { SearchScreen() }
             composable(Screen.Collection.route) { CollectionScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Settings.route) { SettingsScreen(
+                darkThemeEnabled = darkTheme,
+                onDarkThemeToggle = onDarkThemeToggle
+            ) }
         }
     }
 

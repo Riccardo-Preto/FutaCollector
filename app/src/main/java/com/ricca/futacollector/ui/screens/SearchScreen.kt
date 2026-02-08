@@ -18,8 +18,13 @@ import com.ricca.futacollector.RetrofitInstance
 import kotlinx.coroutines.launch
 import com.ricca.futacollector.*
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+
 
 
 @Composable
@@ -64,7 +69,20 @@ fun SearchScreen() {
                 }
             },
             placeholder = { Text("Cerca carta...") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -112,8 +130,12 @@ fun SearchScreen() {
                             .padding(4.dp)
                             .fillMaxWidth()
                             .aspectRatio(0.7f)
-                            .clickable { selectedCard = card } // apre la schermata dettaglio
-                    ) {
+                            .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp))
+                            .shadow(4.dp, shape = RoundedCornerShape(8.dp))
+                            .clickable { selectedCard = card },
+                        contentAlignment = Alignment.Center
+                    )
+                    {
                         if (!card.card_image.isNullOrEmpty()) {
                             Image(
                                 painter = rememberAsyncImagePainter(card.card_image),
@@ -121,13 +143,27 @@ fun SearchScreen() {
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Text(
-                                text = buildString {
-                                    appendLine(card.card_name)
-                                    appendLine(card.card_set_id)
-                                },
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                // Sfondo grigio chiaro
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Gray.copy(alpha = 0.3f))
+                                )
+                                Text(
+                                    text = buildString {
+                                        appendLine(card.card_name)
+                                        appendLine(card.card_set_id)
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                        .padding(4.dp),
+                                    color = Color.White
+                                )
+                            }
+
                         }
                     }
                 }
@@ -135,7 +171,13 @@ fun SearchScreen() {
 
 // ---------- Mostra CardDetailScreen in overlay se c'è una carta selezionata ----------
             selectedCard?.let { card ->
-                Dialog(onDismissRequest = { selectedCard = null }) {
+                Dialog(
+                    onDismissRequest = { selectedCard = null },
+                    // AGGIUNGI QUESTE PROPERTIES QUI
+                    properties = DialogProperties(
+                        usePlatformDefaultWidth = false // Permette alla card di allargarsi
+                    )
+                ) {
                     CardDetailScreen(
                         card = card,
                         onAddToCollection = { /* per ora niente */ }

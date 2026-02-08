@@ -28,13 +28,19 @@ import com.ricca.futacollector.ui.navigation.AppNavigation
 
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
-            FutaCollectorTheme {
-                AppNavigation()
+            // 1️⃣ Stato globale del tema
+            var isDarkTheme by remember { mutableStateOf(false) }
+
+            // 2️⃣ AppTheme con tema dinamico
+            FutaCollectorTheme(darkTheme = isDarkTheme) {
+                // 3️⃣ Passiamo lo stato a AppNavigation
+                AppNavigation(
+                    darkTheme = isDarkTheme,
+                    onDarkThemeToggle = { isDarkTheme = it } // callback per lo switch
+                )
             }
         }
     }
