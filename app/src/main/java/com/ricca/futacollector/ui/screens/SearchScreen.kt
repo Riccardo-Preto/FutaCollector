@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import com.ricca.futacollector.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.window.Dialog
 
 
 @Composable
@@ -98,8 +99,10 @@ fun SearchScreen() {
 
         } else {
             // ---------- Griglia risultati ricerca ----------
+            var selectedCard by remember { mutableStateOf<ApiCard?>(null) }
+
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2), // 2 colonne per immagini più grandi
+                columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(4.dp)
             ) {
@@ -109,6 +112,7 @@ fun SearchScreen() {
                             .padding(4.dp)
                             .fillMaxWidth()
                             .aspectRatio(0.7f)
+                            .clickable { selectedCard = card } // apre la schermata dettaglio
                     ) {
                         if (!card.card_image.isNullOrEmpty()) {
                             Image(
@@ -117,37 +121,25 @@ fun SearchScreen() {
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Box(
-                                modifier = Modifier
-                                    .padding(4.dp)
-                                    .fillMaxWidth()
-                                    .aspectRatio(0.7f)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .padding(8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (!card.card_image.isNullOrEmpty()) {
-                                    Image(
-                                        painter = rememberAsyncImagePainter(card.card_image),
-                                        contentDescription = card.card_name,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    Text(
-                                        text = buildString {
-                                            appendLine("Nome: ${card.card_name}")
-                                            appendLine("Set: ${card.set_name}")
-                                            appendLine("ID: ${card.card_set_id}")
-                                            card.inventory_price?.let { appendLine("Inventario: $it€") }
-                                            card.market_price?.let { appendLine("Mercato: $it€") }
-                                        },
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-
+                            Text(
+                                text = buildString {
+                                    appendLine(card.card_name)
+                                    appendLine(card.card_set_id)
+                                },
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                     }
+                }
+            }
+
+// ---------- Mostra CardDetailScreen in overlay se c'è una carta selezionata ----------
+            selectedCard?.let { card ->
+                Dialog(onDismissRequest = { selectedCard = null }) {
+                    CardDetailScreen(
+                        card = card,
+                        onAddToCollection = { /* per ora niente */ }
+                    )
                 }
             }
         }
