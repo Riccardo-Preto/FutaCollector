@@ -13,6 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.lazy.grid.*
+import coil.compose.AsyncImage
 
 
 class MainActivity : ComponentActivity() {
@@ -28,67 +31,49 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
 
-    var selectedSetId by remember { mutableStateOf<String?>(null) }
-    var allSets by remember { mutableStateOf<List<CardSet>>(emptyList()) }
-    val scope = rememberCoroutineScope()
+    var showSearch by remember { mutableStateOf(false) }
 
-    // Carica i set
-    LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                allSets = RetrofitInstance.api.getAllSets()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    // Mostra SetListScreen oppure CardSearchScreen se un set è selezionato
-    if (selectedSetId == null) {
-        SetListScreen(allSets = allSets) { clickedSetId ->
-            selectedSetId = clickedSetId
-        }
+    if (showSearch) {
+        SearchScreen(
+            onBack = { showSearch = false }
+        )
     } else {
-        CardSearchScreen(setId = selectedSetId!!) {
-            selectedSetId = null // bottone back per tornare alla lista set
-        }
+        HomeScreen(
+            onAddCardClick = { showSearch = true }
+        )
     }
 }
 
 @Composable
-fun SetListScreen(allSets: List<CardSet>, onSetClick: (String) -> Unit) {
+fun HomeScreen(onAddCardClick: () -> Unit) {
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize() // molto importante, così LazyColumn sa quanto spazio ha
-            .padding(16.dp)
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        items(allSets) { set ->
-            Text(
-                text = set.name,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSetClick(set.card_id) }
-                    .padding(8.dp)
-            )
-            Divider()
+        Button(onClick = onAddCardClick) {
+            Text("Aggiungi carta alla collezione")
         }
     }
 }
 
 @Composable
-fun CardSearchScreen(setId: String, onBack: () -> Unit) {
+fun SearchScreen(onBack: () -> Unit) {
 
     var searchText by remember { mutableStateOf("") }
-    var searchResults by remember { mutableStateOf<List<Card>>(emptyList()) }
+    var searchResults by remember { mutableStateOf<List<ApiCard>>(emptyList()) }
+
+
     val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier
-        .fillMaxSize() // importantissimo
-        .padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
 
-        Button(onClick = { onBack() }) {
-            Text("← Torna ai set")
+        Button(onClick = onBack) {
+            Text("← Indietro")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -109,25 +94,51 @@ fun CardSearchScreen(setId: String, onBack: () -> Unit) {
                         cardName = searchText
                     )
                     searchResults = results
-                } catch(e: Exception) {
+                } catch (e: Exception) {
                     e.printStackTrace()
-                    searchResults = emptyList()
                 }
             }
         }) {
             Text("Cerca")
         }
 
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // LazyColumn con peso per riempire lo spazio disponibile
-        LazyColumn(modifier = Modifier.fillMaxHeight()) {
-            items(searchResults) { card ->
-                Text(card.name)
-                Divider()
-            }
+        CardGrid(cards = searchResults)
+    }
+}
+
+@Composable
+fun CardGrid(cards: List<ApiCard>) {
+
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(140.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(8.dp)
+    ) {
+
+        items(cards) { card ->
+            CardItem(card)
         }
     }
 }
 
+@Composable
+fun CardItem(card: ApiCard) {
+
+    Column(
+        modifier = Modifier.padding(4.dp)
+    ) {
+
+        AsyncImage(
+            model = card.card_image,
+            contentDescription = card.card_name,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Text(
+            text = card.card_name,
+            maxLines = 1
+        )
+    }
+}
