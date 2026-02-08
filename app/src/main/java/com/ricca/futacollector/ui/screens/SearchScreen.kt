@@ -173,7 +173,6 @@ fun SearchScreen() {
             selectedCard?.let { card ->
                 Dialog(
                     onDismissRequest = { selectedCard = null },
-                    // AGGIUNGI QUESTE PROPERTIES QUI
                     properties = DialogProperties(
                         usePlatformDefaultWidth = false // Permette alla card di allargarsi
                     )

@@ -10,6 +10,7 @@ kotlin = "2.0.21"
 composeBom = "2024.09.00"
 coil = "2.5.0"
 foundation = "1.10.2"
+roomCommonJvm = "2.8.4"
 
 
 [libraries]
@@ -29,6 +30,10 @@ androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-te
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
+androidx-room-common-jvm = { group = "androidx.room", name = "room-common-jvm", version.ref = "roomCommonJvm" }
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "roomCommonJvm" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCommonJvm" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomCommonJvm" }
 
 
 [plugins]
