@@ -1,5 +1,6 @@
 package com.ricca.futacollector.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,7 +20,8 @@ import com.ricca.futacollector.ApiCard
 @Composable
 fun CardDetailScreen(
     card: ApiCard,
-    onAddToCollection: () -> Unit = {}
+    onAddToCollection: () -> Unit = {},
+    onRemoveFromCollection: () -> Unit // Opzionale
 ) {
     // La Card principale ora occupa il 92% della larghezza e si adatta in altezza
     Card(
@@ -128,6 +130,27 @@ fun CardDetailScreen(
                     text = "+ Aggiungi alla collezione",
                     style = MaterialTheme.typography.titleMedium
                 )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // Tasto Aggiungi
+                Button(
+                    onClick = { onAddToCollection() },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Aggiungi copia")
+                }
+
+                // Tasto Rimuovi (mostralo solo se ha senso, o lascialo sempre attivo)
+                OutlinedButton(
+                    onClick = { onRemoveFromCollection() },
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Rimuovi copia")
+                }
             }
         }
     }

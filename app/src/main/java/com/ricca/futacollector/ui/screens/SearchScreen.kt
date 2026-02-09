@@ -132,77 +132,25 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(4.dp)
             ) {
-                items(cards) { card ->
-                    Column(
-                        modifier = Modifier
-                            .padding(6.dp)
-                            .fillMaxWidth()
-                            // Cornice esterna principale scura e più spessa
-                            .border(
-                                width = 2.dp, // Più spessa
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f), // Più scura
-                                shape = RoundedCornerShape(10.dp)
-                            )
-                            .shadow(2.dp, shape = RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp)) // Importante: taglia tutto ciò che esce
-                            .clickable { selectedCard = card },
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // 1. BOX IMMAGINE: Tocca i bordi sopra e ai lati
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(0.7f)
-                        ) {
-                            if (!card.card_image.isNullOrEmpty()) {
-                                Image(
-                                    painter = rememberAsyncImagePainter(card.card_image),
-                                    contentDescription = card.card_name,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                )
-                            } else {
-                                Box(modifier = Modifier.fillMaxSize().background(Color.Gray.copy(alpha = 0.2f)))
-                            }
-                        }
+                items(cards) { card -> // 'card' qui è la tua ApiCard
 
-                        // 2. LINEA DI SEPARAZIONE SCURA (La base della cornice dell'immagine)
-                        HorizontalDivider(
-                            thickness = 2.dp, // Stesso spessore della cornice esterna
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                        )
+                    // 1. Creiamo l'oggetto Card compatibile con il componente
+                    val cardPerGrafica = com.ricca.futacollector.data.Card(
+                        id = card.card_set_id,
+                        name = card.card_name,
+                        image = card.card_image ?: "",
+                        setName = card.set_name ?: "",
+                        inventoryPrice = card.inventory_price.toString(),
+                        marketPrice = card.market_price.toString(),
+                        dateAdded = 0 // Valore fittizio, non serve per la visualizzazione
+                    )
 
-                        // 3. BOX TESTO
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(38.dp)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)), // Leggero stacco di colore
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = card.card_name,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = card.card_set_id,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 8.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                textAlign = TextAlign.Center,
-                                maxLines = 1
-                            )
-                        }
-                    }
+                    // 2. Usiamo il componente centralizzato
+                    CardItemView(
+                        card = cardPerGrafica,
+                        count = 0, // Nella ricerca non vogliamo il badge
+                        onClick = { selectedCard = card } // Apriamo il dettaglio
+                    )
                 }
             }
 
@@ -217,7 +165,7 @@ fun SearchScreen(
                         onAddToCollection = {
                             viewModel.addCardToCollection(card) // CHIAMA IL MAGGIORDOMO!
                             selectedCard = null // Chiude il popup dopo aver aggiunto
-                        }
+                        }, {}
                     )
                 }
             }
