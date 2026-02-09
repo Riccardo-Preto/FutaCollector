@@ -46,7 +46,7 @@ import com.ricca.futacollector.viewmodel.CollectionViewModel
 
 @Composable
 fun CollectionScreen(
-    viewModel: CollectionViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: CollectionViewModel
 ) {
     val collectionByCount by viewModel.collectionCards.collectAsState()
     var selectedItemForDetail by remember { mutableStateOf<CardWithCount?>(null) }
@@ -104,9 +104,11 @@ fun CollectionScreen(
                 mode = CardDetailMode.Collection(count),
                 onAddToCollection = {
                     viewModel.addCardToCollection(apiCardEquivalent)
+                    selectedItemForDetail = null // Chiudi il popup per vedere la notifica
                 },
                 onRemoveFromCollection = {
                     viewModel.removeCardFromCollection(dbCard.id, dbCard.image)
+                    selectedItemForDetail = null // Chiudi il popup per vedere la notifica
                 }
             )
         }

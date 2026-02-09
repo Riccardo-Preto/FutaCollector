@@ -77,7 +77,8 @@ fun CardItemView(
                     Text(
                         text = card.name,
                         style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -94,8 +95,11 @@ fun CardItemView(
 
                         Text(
                             text = "#${card.id}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
 
                         PriceBadge(card.marketPrice)
@@ -131,13 +135,17 @@ fun PriceBadge(price: String?) {
 
     Surface(
         shape = RoundedCornerShape(4.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+        color = MaterialTheme.colorScheme.primary
     ) {
         Text(
             text = formatPrice(price),
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+            // Testo bianco o onPrimary per contrasto massimo, font più piccolo
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.onPrimary
         )
     }
 }

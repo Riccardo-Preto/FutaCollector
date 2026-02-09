@@ -9,6 +9,7 @@ import com.ricca.futacollector.ApiCard
 import com.ricca.futacollector.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
 
 /**
  * Classe di supporto per la UI: contiene la carta e quante copie ne abbiamo
@@ -20,20 +21,19 @@ data class CardWithCount(
 
 class CollectionViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Inizializziamo il DAO
     private val cardDao = AppDatabase.getDatabase(application).cardDao()
+
+    // --- AGGIUNTA PER GLI AVVISI ---
+    private val _uiEvents = kotlinx.coroutines.channels.Channel<String>()
+    val uiEvents = _uiEvents.receiveAsFlow()
+    // -------------------------------
+
     fun getCardCount(cardId: String, image: String): Flow<Int> {
         return collectionCards.map { list ->
             list.find { it.card.id == cardId && it.card.image == image }?.count ?: 0
         }
     }
 
-
-
-    /**
-     * Trasforma il flusso di tutte le carte del DB in una lista raggruppata.
-     * La chiave di raggruppamento è "ID_URLIMMAGINE" per distinguere le Alternate Art.
-     */
     val collectionCards: StateFlow<List<CardWithCount>> = cardDao.getAllCards()
         .map { list ->
             list.groupBy { "${it.id}_${it.image}" }
@@ -43,7 +43,7 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
                         count = copies.size
                     )
                 }
-                .sortedBy { it.card.id } // Ordine alfabetico/numerico per ID
+                .sortedBy { it.card.id }
         }
         .stateIn(
             scope = viewModelScope,
@@ -51,9 +51,6 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
             initialValue = emptyList()
         )
 
-    /**
-     * Converte una ApiCard in Card del DB e la salva.
-     */
     fun addCardToCollection(apiCard: ApiCard) {
         viewModelScope.launch {
             try {
@@ -70,15 +67,12 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
                 Log.d("FUTA_LOG", "Salvataggio copia di: ${cardToSave.name}")
                 cardDao.insertCard(cardToSave)
 
-                Toast.makeText(
-                    getApplication(),
-                    "${cardToSave.name} aggiunta!",
-                    Toast.LENGTH_SHORT
-                ).show()
+                // Invece del Toast:
+                _uiEvents.send("${cardToSave.name} aggiunta!")
 
             } catch (e: Exception) {
                 Log.e("FUTA_LOG", "ERRORE salvataggio: ${e.message}", e)
-                Toast.makeText(getApplication(), "Errore nel salvataggio", Toast.LENGTH_SHORT).show()
+                _uiEvents.send("Errore nel salvataggio")
             }
         }
     }
@@ -86,18 +80,19 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
     fun removeCardFromCollection(cardId: String, image: String) {
         viewModelScope.launch {
             try {
-                // Cerchiamo tutte le copie di quella carta specifica
                 val copies = cardDao.getCardsByIdAndImage(cardId, image)
 
                 if (copies.isNotEmpty()) {
-                    // Eliminiamo solo la prima (la più recente o la prima trovata)
                     cardDao.deleteCard(copies.first())
-                    Toast.makeText(getApplication(), "Una copia rimossa", Toast.LENGTH_SHORT).show()
+                    // Invece del Toast:
+                    _uiEvents.send("Una copia rimossa")
                 } else {
-                    Toast.makeText(getApplication(), "Nessuna copia presente!", Toast.LENGTH_SHORT).show()
+                    // Invece del Toast:
+                    _uiEvents.send("Nessuna copia presente!")
                 }
             } catch (e: Exception) {
                 Log.e("FUTA_LOG", "Errore rimozione: ${e.message}")
+                _uiEvents.send("Errore nella rimozione")
             }
         }
     }
