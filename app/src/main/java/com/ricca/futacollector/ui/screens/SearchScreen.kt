@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.ricca.futacollector.ui.CardDetailMode
 import com.ricca.futacollector.viewmodel.CollectionViewModel
 
 
@@ -162,11 +163,13 @@ fun SearchScreen(
                 ) {
                     CardDetailScreen(
                         card = card,
+                        mode = CardDetailMode.Search,
                         onAddToCollection = {
-                            viewModel.addCardToCollection(card) // CHIAMA IL MAGGIORDOMO!
-                            selectedCard = null // Chiude il popup dopo aver aggiunto
-                        }, {}
+                            viewModel.addCardToCollection(card)
+                            selectedCard = null
+                        }
                     )
+
                 }
             }
         }

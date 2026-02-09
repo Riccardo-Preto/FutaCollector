@@ -22,6 +22,13 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
 
     // Inizializziamo il DAO
     private val cardDao = AppDatabase.getDatabase(application).cardDao()
+    fun getCardCount(cardId: String, image: String): Flow<Int> {
+        return collectionCards.map { list ->
+            list.find { it.card.id == cardId && it.card.image == image }?.count ?: 0
+        }
+    }
+
+
 
     /**
      * Trasforma il flusso di tutte le carte del DB in una lista raggruppata.

@@ -16,12 +16,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.ricca.futacollector.ApiCard
+import com.ricca.futacollector.ui.CardDetailMode
+
 
 @Composable
 fun CardDetailScreen(
     card: ApiCard,
+    mode: CardDetailMode,
     onAddToCollection: () -> Unit = {},
-    onRemoveFromCollection: () -> Unit // Opzionale
+    onRemoveFromCollection: () -> Unit = {}
 ) {
     // La Card principale ora occupa il 92% della larghezza e si adatta in altezza
     Card(
@@ -114,44 +117,52 @@ fun CardDetailScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ---------- Bottone di Azione ----------
-            Button(
-                onClick = onAddToCollection,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            ) {
-                Text(
-                    text = "+ Aggiungi alla collezione",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                // Tasto Aggiungi
-                Button(
-                    onClick = { onAddToCollection() },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("Aggiungi copia")
+            when (mode) {
+
+                is CardDetailMode.Search -> {
+
+                    Button(
+                        onClick = onAddToCollection,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("+ Aggiungi alla collezione")
+                    }
                 }
 
-                // Tasto Rimuovi (mostralo solo se ha senso, o lascialo sempre attivo)
-                OutlinedButton(
-                    onClick = { onRemoveFromCollection() },
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Rimuovi copia")
+                is CardDetailMode.Collection -> {
+
+                    Text(
+                        text = "Hai ${mode.ownedCopies} copie",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+
+                        Button(
+                            onClick = onAddToCollection,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Aggiungi copia")
+                        }
+
+                        OutlinedButton(
+                            onClick = onRemoveFromCollection,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Rimuovi copia")
+                        }
+                    }
                 }
             }
+
         }
     }
 }

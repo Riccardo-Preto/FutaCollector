@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ricca.futacollector.data.Card
+import com.ricca.futacollector.ui.CardDetailMode
+import com.ricca.futacollector.viewmodel.CardWithCount
 import com.ricca.futacollector.viewmodel.CollectionViewModel
 
 
@@ -47,7 +49,7 @@ fun CollectionScreen(
     viewModel: CollectionViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val collectionByCount by viewModel.collectionCards.collectAsState()
-    var selectedCardForDetail by remember { mutableStateOf<Card?>(null) }
+    var selectedItemForDetail by remember { mutableStateOf<CardWithCount?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
@@ -66,14 +68,27 @@ fun CollectionScreen(
                 CardItemView(
                     card = item.card,
                     count = item.count,
-                    onClick = { selectedCardForDetail = item.card }
+                    onClick = { selectedItemForDetail = item }
                 )
             }
         }
     }
 
     // Popup Dettaglio
-    selectedCardForDetail?.let { dbCard ->
+    selectedItemForDetail?.let { selectedItem ->
+
+        val count by viewModel
+            .getCardCount(selectedItem.card.id, selectedItem.card.image)
+            .collectAsState(initial = selectedItem.count)
+
+        // Chiude automaticamente il popup
+        if (count == 0) {
+            selectedItemForDetail = null
+            return@let
+        }
+
+        val dbCard = selectedItem.card
+
         val apiCardEquivalent = ApiCard(
             card_set_id = dbCard.id,
             card_name = dbCard.name,
@@ -83,20 +98,18 @@ fun CollectionScreen(
             market_price = dbCard.marketPrice.toDoubleOrNull() ?: 0.0
         )
 
-        Dialog(onDismissRequest = { selectedCardForDetail = null }) {
+        Dialog(onDismissRequest = { selectedItemForDetail = null }) {
             CardDetailScreen(
                 card = apiCardEquivalent,
-                // OPZIONE AGGIUNGI (come hai chiesto tu)
+                mode = CardDetailMode.Collection(count),
                 onAddToCollection = {
                     viewModel.addCardToCollection(apiCardEquivalent)
-                    // Non chiudiamo il dialog così può aggiungerne altre
                 },
-                // OPZIONE RIMUOVI
                 onRemoveFromCollection = {
                     viewModel.removeCardFromCollection(dbCard.id, dbCard.image)
-                    // Se dopo la rimozione non ne rimangono più, potresti voler chiudere
                 }
             )
         }
     }
+
 }
