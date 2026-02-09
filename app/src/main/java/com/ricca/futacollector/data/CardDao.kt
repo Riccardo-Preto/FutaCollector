@@ -16,4 +16,7 @@ interface CardDao {
 
     @Delete
     suspend fun deleteCard(card: Card)
+
+    @Query("DELETE FROM collection") // Sostituisci cards_table con il nome reale della tua tabella se è diverso
+    suspend fun deleteAll()
 }

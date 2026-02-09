@@ -52,24 +52,30 @@ fun CollectionScreen(
     viewModel: CollectionViewModel,
     onNavigateToSearch: () -> Unit
 ) {
-    // Usiamo il nome corretto della variabile che arriva dal ViewModel
     val collectionByCount by viewModel.collectionCards.collectAsState()
     var selectedItemForDetail by remember { mutableStateOf<CardWithCount?>(null) }
+    var sortMode by remember { mutableStateOf(0) }
+
+    val sortedList = remember(collectionByCount, sortMode) {
+        when (sortMode) {
+            0 -> collectionByCount.sortedBy { it.card.name }
+            1 -> collectionByCount.sortedByDescending { it.card.marketPrice.toDoubleOrNull() ?: 0.0 }
+            else -> collectionByCount
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        // Titolo più grande (displaySmall è più impattante di headlineMedium)
                         Text(
                             text = "La mia collezione",
                             style = MaterialTheme.typography.displaySmall,
                             fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-1).sp // Un tocco moderno: stringiamo un po' le lettere
+                            letterSpacing = (-1).sp
                         )
 
-                        // Calcolo statistiche
                         val totalCards = collectionByCount.sumOf { it.count }
                         val totalPrice = collectionByCount.sumOf { item ->
                             val price = item.card.marketPrice.toDoubleOrNull() ?: 0.0
@@ -82,11 +88,7 @@ fun CollectionScreen(
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.secondary
                             )
-                            Text(
-                                text = " • ",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
+                            Text(" • ", color = MaterialTheme.colorScheme.secondary)
                             Text(
                                 text = "Valore: €${String.format("%.2f", totalPrice)}",
                                 style = MaterialTheme.typography.labelLarge,
@@ -96,12 +98,17 @@ fun CollectionScreen(
                         }
                     }
                 },
-                // Aumentiamo leggermente l'altezza della barra per ospitare il titolo più grande
                 modifier = Modifier.height(110.dp),
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToSearch,
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+            }
         }
     ) { padding ->
         Box(
@@ -109,58 +116,62 @@ fun CollectionScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Sostituito 'collection' con 'collectionByCount'
             if (collectionByCount.isEmpty()) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "¯\\_(ツ)_/¯",
-                        style = MaterialTheme.typography.displayMedium,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                    Text(text = "¯\\_(ツ)_/¯", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.outline)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Ancora niente :(",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Text(
-                        text = "Tocca il tasto + per aggiungere carte",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
-                    )
+                    Text(text = "Ancora niente :(", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.outline)
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    contentPadding = PaddingValues(2.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    items(collectionByCount) { item ->
-                        CardItemView(
-                            card = item.card,
-                            count = item.count,
-                            onClick = { selectedItemForDetail = item }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // RIGA DEI FILTRI
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = sortMode == 0,
+                            onClick = { sortMode = 0 },
+                            label = { Text("Nome A-Z") }
                         )
+                        FilterChip(
+                            selected = sortMode == 1,
+                            onClick = { sortMode = 1 },
+                            label = { Text("Valore €€€") }
+                        )
+                    }
+
+                    // GRIGLIA
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        contentPadding = PaddingValues(2.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(sortedList) { item ->
+                            CardItemView(
+                                card = item.card,
+                                count = item.count,
+                                onClick = { selectedItemForDetail = item }
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Popup Dettaglio
+        // POPUP DETTAGLIO (Fuori dal Box, dentro il padding dello Scaffold)
         selectedItemForDetail?.let { selectedItem ->
             val count by viewModel
                 .getCardCount(selectedItem.card.id, selectedItem.card.image)
                 .collectAsState(initial = selectedItem.count)
 
-            if (count == 0) {
-                selectedItemForDetail = null
-            } else {
+            if (count > 0) {
                 val dbCard = selectedItem.card
                 val apiCardEquivalent = ApiCard(
                     card_set_id = dbCard.id,
@@ -175,24 +186,17 @@ fun CollectionScreen(
                     onDismissRequest = { selectedItemForDetail = null },
                     properties = DialogProperties(usePlatformDefaultWidth = false)
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CardDetailScreen(
                             card = apiCardEquivalent,
                             mode = CardDetailMode.Collection(count),
-                            onAddToCollection = {
-                                viewModel.addCardToCollection(apiCardEquivalent)
-                                selectedItemForDetail = null
-                            },
-                            onRemoveFromCollection = {
-                                viewModel.removeCardFromCollection(dbCard.id, dbCard.image)
-                                selectedItemForDetail = null
-                            }
+                            onAddToCollection = { viewModel.addCardToCollection(apiCardEquivalent) },
+                            onRemoveFromCollection = { viewModel.removeCardFromCollection(dbCard.id, dbCard.image) }
                         )
                     }
                 }
+            } else {
+                selectedItemForDetail = null
             }
         }
     }

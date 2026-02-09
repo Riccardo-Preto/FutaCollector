@@ -96,4 +96,16 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
     }
+
+    fun nukeCollection() {
+        viewModelScope.launch {
+            try {
+                cardDao.deleteAll()
+                // Usiamo lo stesso stile delle altre notifiche
+                _uiEvents.send("Collezione svuotata con successo! 🏴‍☠️")
+            } catch (e: Exception) {
+                _uiEvents.send("Errore durante lo svuotamento")
+            }
+        }
+    }
 }

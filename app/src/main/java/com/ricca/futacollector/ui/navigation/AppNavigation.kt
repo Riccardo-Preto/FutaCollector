@@ -137,7 +137,8 @@ fun AppNavigation(
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     darkThemeEnabled = darkTheme,
-                    onDarkThemeToggle = onDarkThemeToggle
+                    onDarkThemeToggle = onDarkThemeToggle,
+                    viewModel = collectionViewModel
                 )
             }
         }
