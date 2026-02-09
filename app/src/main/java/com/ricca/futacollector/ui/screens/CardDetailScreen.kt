@@ -7,12 +7,18 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.ricca.futacollector.ApiCard
@@ -23,146 +29,119 @@ import com.ricca.futacollector.ui.CardDetailMode
 fun CardDetailScreen(
     card: ApiCard,
     mode: CardDetailMode,
-    onAddToCollection: () -> Unit = {},
-    onRemoveFromCollection: () -> Unit = {}
+    onAddToCollection: () -> Unit,
+    onRemoveFromCollection: () -> Unit
 ) {
-    // La Card principale ora occupa il 92% della larghezza e si adatta in altezza
     Card(
         modifier = Modifier
-            .fillMaxWidth(0.92f)
-            .wrapContentHeight()
-            .padding(vertical = 24.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+            .fillMaxWidth(0.95f)
+            .fillMaxHeight(0.85f), // Evitiamo che copra tutto tutto lo schermo
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Fondamentale: permette di scorrere se il contenuto eccede lo schermo
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
 
-            // ---------- Immagine Grande Arrotondata ----------
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.7f),
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!card.card_image.isNullOrEmpty()) {
-                        Image(
-                            painter = rememberAsyncImagePainter(card.card_image),
-                            contentDescription = card.card_name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop // Riempie bene il box
-                        )
-                    } else {
-                        // Placeholder se l'immagine manca
-                        Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(48.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // ---------- Box Dati della Carta (Stile Glicine) ----------
+            // --- PARTE SCORREVOLE (Immagine e Info) ---
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .padding(16.dp)
+                    .weight(1f) // Questo prende tutto lo spazio disponibile tranne quello dei bottoni
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Immagine Carta
+                Image(
+                    painter = rememberAsyncImagePainter(card.card_image),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(0.7f) // Mantiene le proporzioni delle carte da gioco
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Fit
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Nome Carta (che può occupare più righe)
                 Text(
                     text = card.card_name,
                     style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
 
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.1f)
+                Text(
+                    text = card.set_name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
                 )
 
-                DetailRow("Set", card.set_name)
-                DetailRow("ID Seriale", card.card_set_id)
+                Spacer(modifier = Modifier.height(8.dp))
 
-                card.inventory_price?.let {
-                    DetailRow("Prezzo Inventario", "${it}€")
-                }
-                card.market_price?.let {
-                    DetailRow("Prezzo Mercato", "${it}€")
+                // Prezzi o altre info
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    PriceTag(label = "Market", price = card.market_price ?: 0.0)
+                    PriceTag(label = "Inventory", price = card.inventory_price ?: 0.0)
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // --- PARTE FISSA (Bottoni e Copie) ---
+            Surface(
+                tonalElevation = 4.dp, // Gli dà un leggero distacco visivo
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .navigationBarsPadding(), // Rispetta la barra di sistema se presente
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (mode is CardDetailMode.Collection) {
+                        val count = mode.ownedCopies
+                        Text(
+                            text = if (count == 1) "Hai 1 copia" else "Hai $count copie",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-            when (mode) {
-
-                is CardDetailMode.Search -> {
-
-                    Button(
-                        onClick = onAddToCollection,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text("+ Aggiungi alla collezione")
-                    }
-                }
-
-                is CardDetailMode.Collection -> {
-
-                    Text(
-                        text = "Hai ${mode.ownedCopies} copie",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onRemoveFromCollection,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
+                                border = BorderStroke(1.dp, Color.Red)
+                            ) {
+                                Text("Rimuovi")
+                            }
+                            Button(
+                                onClick = onAddToCollection,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Aggiungi")
+                            }
+                        }
+                    } else {
+                        // Bottone standard per quando cerchi
                         Button(
                             onClick = onAddToCollection,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Aggiungi copia")
-                        }
-
-                        OutlinedButton(
-                            onClick = onRemoveFromCollection,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Rimuovi copia")
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Aggiungi alla collezione")
                         }
                     }
                 }
             }
-
         }
     }
 }
@@ -185,6 +164,22 @@ fun DetailRow(label: String, value: String) {
             text = value,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    }
+}
+@Composable
+fun PriceTag(label: String, price: Double) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.secondary
+        )
+        Text(
+            text = if (price > 0) "€${String.format("%.2f", price)}" else "---",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

@@ -13,6 +13,7 @@ foundation = "1.10.2"
 roomCommonJvm = "2.8.4"
 room = "2.6.1"
 ksp = "2.0.21-1.0.26"
+uiText = "1.10.2"
 
 
 [libraries]
@@ -36,6 +37,7 @@ androidx-room-common-jvm = { group = "androidx.room", name = "room-common-jvm", 
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "roomCommonJvm" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCommonJvm" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomCommonJvm" }
+androidx-compose-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "uiText" }
 
 
 

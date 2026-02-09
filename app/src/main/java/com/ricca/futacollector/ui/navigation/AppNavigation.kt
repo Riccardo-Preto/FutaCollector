@@ -122,7 +122,17 @@ fun AppNavigation(
                 SearchScreen(viewModel = collectionViewModel)
             }
             composable(Screen.Collection.route) {
-                CollectionScreen(viewModel = collectionViewModel)
+                CollectionScreen(
+                    viewModel = collectionViewModel,
+                    onNavigateToSearch = {
+                        // Quando premi il tasto +, navighiamo alla rotta della ricerca
+                        navController.navigate(Screen.Search.route) {
+                            // Opzionale: evita di accumulare copie della ricerca nello stack
+                            popUpTo(Screen.Home.route)
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(

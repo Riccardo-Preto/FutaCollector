@@ -76,7 +76,9 @@ fun SearchScreen(
                 coroutineScope.launch {
                     if (query.isNotBlank()) {
                         try {
-                            cards = RetrofitInstance.api.getFilteredCards(query)
+                            // Prendi le carte e inverti l'ordine per vedere le ultime uscite per prime
+                            val fetchedCards = RetrofitInstance.api.getFilteredCards(query)
+                            cards = fetchedCards.reversed()
                         } catch (e: Exception) {
                             e.printStackTrace()
                             cards = emptyList()
@@ -193,7 +195,6 @@ fun SearchScreen(
                     onDismissRequest = { selectedCard = null },
                     properties = DialogProperties(usePlatformDefaultWidth = false)
                 ) {
-                    // Usiamo un Box per poter mettere i messaggi SOPRA il dettaglio
                     Box(modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
@@ -202,14 +203,15 @@ fun SearchScreen(
                             mode = CardDetailMode.Search,
                             onAddToCollection = {
                                 viewModel.addCardToCollection(card)
-                                // Non chiudere subito il dettaglio se vuoi vedere la notifica!
-                                // Oppure chiudilo, ma sappi che la notifica di AppNavigation sarà sotto.
+                                // --- AGGIUNGI QUESTA RIGA ---
+                                selectedCard = null // Chiude il popup dopo l'aggiunta
+                            },
+                            onRemoveFromCollection = {
+                                // Se vuoi permettere di rimuovere anche dalla ricerca:
+                                // viewModel.removeCardFromCollection(card.card_set_id, card.card_image ?: "")
                                 selectedCard = null
                             }
                         )
-
-                        // Se vuoi che la notifica si veda MENTRE il dettaglio è aperto,
-                        // dovresti spostare il controllo degli eventi anche qui.
                     }
                 }
             }
