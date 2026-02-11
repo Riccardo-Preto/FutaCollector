@@ -1,37 +1,20 @@
 package com.ricca.futacollector
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.rememberAsyncImagePainter
-import com.ricca.futacollector.data.Card
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.material3.Card
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-
+import com.ricca.futacollector.data.Card
 
 @Composable
 fun CardItemView(
@@ -40,6 +23,13 @@ fun CardItemView(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 1. Gestione sicura della stringa immagine con valore di fallback
+    val cardImage = card.image ?: ""
+    val imageModel = if (cardImage.startsWith("http")) {
+        cardImage
+    } else {
+        "file:///android_asset/immagini_ottimizzate/${cardImage}"
+    }
 
     Card(
         modifier = modifier
@@ -48,18 +38,16 @@ fun CardItemView(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-
         Box {
-
             Column {
-
                 // ----- IMMAGINE CARTA -----
                 AsyncImage(
-                    model = card.image,
-                    contentDescription = card.name,
+                    model = imageModel,
+                    // Se il nome è null, mettiamo una stringa vuota o un placeholder
+                    contentDescription = card.name ?: "Carta One Piece",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(0.72f), // proporzione carte TCG
+                        .aspectRatio(0.72f),
                     contentScale = ContentScale.Fit
                 )
 
@@ -72,10 +60,9 @@ fun CardItemView(
                         )
                         .padding(horizontal = 6.dp, vertical = 4.dp)
                 ) {
-
-                    // Nome carta
                     Text(
-                        text = card.name,
+                        // 2. Se il nome è null, mostra "Sconosciuto"
+                        text = card.name ?: "Sconosciuto",
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
@@ -86,13 +73,11 @@ fun CardItemView(
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    // Riga ID + Prezzo
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-
                         Text(
                             text = "#${card.id}",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
@@ -102,6 +87,7 @@ fun CardItemView(
                             overflow = TextOverflow.Ellipsis
                         )
 
+                        // marketPrice è già Double (non null), quindi qui siamo al sicuro
                         PriceBadge(card.marketPrice)
                     }
                 }
@@ -131,8 +117,7 @@ fun CardItemView(
 }
 
 @Composable
-fun PriceBadge(price: String?) {
-
+fun PriceBadge(price: Double) {
     Surface(
         shape = RoundedCornerShape(4.dp),
         color = MaterialTheme.colorScheme.primary
@@ -140,7 +125,6 @@ fun PriceBadge(price: String?) {
         Text(
             text = formatPrice(price),
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-            // Testo bianco o onPrimary per contrasto massimo, font più piccolo
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold
@@ -150,7 +134,6 @@ fun PriceBadge(price: String?) {
     }
 }
 
-fun formatPrice(price: String?): String {
-    val value = price?.toDoubleOrNull() ?: return "-"
-    return String.format("€ %.2f", value)
+fun formatPrice(price: Double): String {
+    return if (price > 0) String.format("€ %.2f", price) else "-"
 }

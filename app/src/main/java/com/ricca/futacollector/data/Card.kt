@@ -1,18 +1,40 @@
 package com.ricca.futacollector.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.google.gson.annotations.SerializedName
 
-@Entity(tableName = "collection")
+@Entity(
+    tableName = "cards",
+    foreignKeys = [
+        ForeignKey(
+            entity = CardSetEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["set_id"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [Index("set_id")]
+)
 data class Card(
-    @PrimaryKey(autoGenerate = true)
-    val internalId: Int = 0, // Questo ID lo gestisce Room automaticamente
-    val id: String,          // Il card_set_id dell'API (ora può essere duplicato nel DB)
-    val name: String,
-    val image: String,
-    val setName: String,
-    val inventoryPrice: String,
-    val marketPrice: String,
-    val dateAdded: Long
+    @PrimaryKey
+    @ColumnInfo(name = "id") val id: String,
+
+    @ColumnInfo(name = "nome") val name: String?,
+    @ColumnInfo(name = "market_price") val marketPrice: Double = 0.0,
+    @ColumnInfo(name = "card_image") val image: String?,
+    @ColumnInfo(name = "rarity") val rarity: String?,
+    @ColumnInfo(name = "card_color") val color: String?,
+    @ColumnInfo(name = "card_type") val type: String?,
+    @ColumnInfo(name = "card_cost") val cost: String?,
+    @ColumnInfo(name = "card_power") val power: String?,
+    @ColumnInfo(name = "counter_amount") val counter: String?,
+    @ColumnInfo(name = "attribute") val attribute: String?,
+
+    @ColumnInfo(name = "verificata") val isVerified: Int = 0,
+    @ColumnInfo(name = "note_revisione") val revisionNotes: String? = null,
+
+    @ColumnInfo(name = "set_id") val setId: String?
 )

@@ -1,10 +1,12 @@
 package com.ricca.futacollector.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -12,14 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ricca.futacollector.R
 import com.ricca.futacollector.viewmodel.CollectionViewModel
-import android.content.Intent // Fondamentale per la condivisione
-import androidx.compose.material.icons.filled.DarkMode
 
 @Composable
 fun SettingsScreen(
@@ -29,7 +26,6 @@ fun SettingsScreen(
 ) {
     val collection by viewModel.collectionCards.collectAsState()
     val context = LocalContext.current
-
 
     Column(
         modifier = Modifier
@@ -56,7 +52,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Default.DarkMode,
+                    imageVector = Icons.Default.DarkMode,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
@@ -74,15 +70,16 @@ fun SettingsScreen(
         // Tasto Condividi
         OutlinedButton(
             onClick = {
-                val totalValue = collection.sumOf { (it.card.marketPrice.toDoubleOrNull() ?: 0.0) * it.count }
+                // CALCOLO SEMPLIFICATO: marketPrice è già Double
+                val totalValue = collection.sumOf { it.card.marketPrice * it.count }
                 val shareText = "Il valore della mia collezione One Piece è di €${String.format("%.2f", totalValue)}! 🏴‍☠️ Scopri il mio tesoro su FutaCollector."
 
-                val intent = android.content.Intent().apply {
-                    action = android.content.Intent.ACTION_SEND
-                    putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                val intent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, shareText)
                     type = "text/plain"
                 }
-                context.startActivity(android.content.Intent.createChooser(intent, "Condividi con i tuoi amici pirati"))
+                context.startActivity(Intent.createChooser(intent, "Condividi con i tuoi amici pirati"))
             },
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             shape = RoundedCornerShape(12.dp)
@@ -92,13 +89,18 @@ fun SettingsScreen(
             Text("Condividi Valore Collezione")
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Tasto Reset
         var showDeleteDialog by remember { mutableStateOf(false) }
 
         Button(
             onClick = { showDeleteDialog = true },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.error),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.error
+            ),
             shape = RoundedCornerShape(12.dp)
         ) {
             Text("Svuota Collezione")
@@ -109,11 +111,11 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
                 title = { Text("Sei sicuro?") },
-                text = { Text("Questa azione cancellerà tutte le carte salvate nel database. Non potrai tornare indietro!") },
+                text = { Text("Questa azione cancellerà tutte le carte salvate nel database della tua collezione. Le carte del database generale rimarranno intatte.") },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            viewModel.nukeCollection() // <--- DEVE ESSERE QUESTA
+                            viewModel.nukeCollection()
                             showDeleteDialog = false
                         }
                     ) {

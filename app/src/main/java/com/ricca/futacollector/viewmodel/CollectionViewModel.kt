@@ -2,17 +2,16 @@ package com.ricca.futacollector.viewmodel
 
 import android.app.Application
 import android.util.Log
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ricca.futacollector.ApiCard
 import com.ricca.futacollector.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
 
 /**
- * Classe di supporto per la UI: contiene la carta e quante copie ne abbiamo
+ * Classe di supporto per la UI: contiene la carta (dati catalogo)
+ * e quante copie ne abbiamo in collezione (dati utente)
  */
 data class CardWithCount(
     val card: Card,
@@ -23,72 +22,92 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
 
     private val cardDao = AppDatabase.getDatabase(application).cardDao()
 
-    // --- AGGIUNTA PER GLI AVVISI ---
-    private val _uiEvents = kotlinx.coroutines.channels.Channel<String>()
-    val uiEvents = _uiEvents.receiveAsFlow()
-    // -------------------------------
+    // 1. Tutti i SET (Tabella 'sets')
+    val allSets: StateFlow<List<CardSetEntity>> = cardDao.getAllSetsOrdered()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun getCardCount(cardId: String, image: String): Flow<Int> {
-        return collectionCards.map { list ->
-            list.find { it.card.id == cardId && it.card.image == image }?.count ?: 0
+    // 2. Risultati della ricerca (Tabella 'cards')
+    private val _searchResults = MutableStateFlow<List<Card>>(emptyList())
+    val searchResults: StateFlow<List<Card>> = _searchResults.asStateFlow()
+
+    // 3. La tua Collezione Personale
+    // Trasformiamo i CollectionItem di Room nei tuoi CardWithCount per la UI
+    val collectionCards: StateFlow<List<CardWithCount>> = cardDao.getAllCollectionItems()
+        .map { items ->
+            items.map { item ->
+                CardWithCount(
+                    card = item.card,
+                    count = item.userCard.count
+                )
+            }.sortedBy { it.card.id }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Canale per messaggi alla UI
+    private val _uiEvents = Channel<String>()
+    val uiEvents = _uiEvents.receiveAsFlow()
+
+    // --- LOGICA DI RICERCA (Catalogo) ---
+
+    fun searchCards(query: String) {
+        viewModelScope.launch {
+            if (query.isBlank()) {
+                _searchResults.value = emptyList()
+            } else {
+                _searchResults.value = cardDao.searchInDatabase(query)
+            }
         }
     }
 
-    val collectionCards: StateFlow<List<CardWithCount>> = cardDao.getAllCards()
-        .map { list ->
-            list.groupBy { "${it.id}_${it.image}" }
-                .map { (_, copies) ->
-                    CardWithCount(
-                        card = copies.first(),
-                        count = copies.size
-                    )
-                }
-                .sortedBy { it.card.id }
+    fun getCardsFromSet(setId: String) {
+        viewModelScope.launch {
+            _searchResults.value = cardDao.getCardsBySet(setId)
         }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    }
 
-    fun addCardToCollection(apiCard: ApiCard) {
+
+    // --- GESTIONE COPIE ---
+
+    fun getCardCount(cardId: String): Flow<Int> {
+        return collectionCards.map { list ->
+            list.find { it.card.id == cardId }?.count ?: 0
+        }
+    }
+
+    // --- AGGIUNTA / RIMOZIONE (Tabella 'user_collection') ---
+
+    fun addCardToCollection(card: Card) {
         viewModelScope.launch {
             try {
-                val cardToSave = Card(
-                    id = apiCard.card_set_id,
-                    name = apiCard.card_name,
-                    image = apiCard.card_image ?: "",
-                    setName = apiCard.set_name ?: "",
-                    inventoryPrice = apiCard.inventory_price.toString(),
-                    marketPrice = apiCard.market_price.toString(),
-                    dateAdded = System.currentTimeMillis()
-                )
+                // Recuperiamo il conteggio attuale dalla nostra lista in memoria
+                val currentCount = collectionCards.value.find { it.card.id == card.id }?.count ?: 0
 
-                Log.d("FUTA_LOG", "Salvataggio copia di: ${cardToSave.name}")
-                cardDao.insertCard(cardToSave)
+                // Inseriamo o aggiorniamo la riga nella tabella utente
+                cardDao.insertUserCard(UserCardEntity(cardId = card.id, count = currentCount + 1))
 
-                // Invece del Toast:
-                _uiEvents.send("${cardToSave.name} aggiunta!")
-
+                _uiEvents.send("${card.name ?: "Carta"} aggiunta!")
             } catch (e: Exception) {
-                Log.e("FUTA_LOG", "ERRORE salvataggio: ${e.message}", e)
+                Log.e("FUTA_LOG", "Errore salvataggio: ${e.message}")
                 _uiEvents.send("Errore nel salvataggio")
             }
         }
     }
 
-    fun removeCardFromCollection(cardId: String, image: String) {
+    fun removeCardFromCollection(cardId: String) {
         viewModelScope.launch {
             try {
-                val copies = cardDao.getCardsByIdAndImage(cardId, image)
+                val currentCount = collectionCards.value.find { it.card.id == cardId }?.count ?: 0
 
-                if (copies.isNotEmpty()) {
-                    cardDao.deleteCard(copies.first())
-                    // Invece del Toast:
+                if (currentCount > 1) {
+                    // Se ne hai più di una, decrementa
+                    cardDao.insertUserCard(UserCardEntity(cardId = cardId, count = currentCount - 1))
                     _uiEvents.send("Una copia rimossa")
+                } else if (currentCount == 1) {
+                    // Se era l'ultima, elimina proprio la riga
+                    cardDao.deleteUserCard(cardId)
+                    _uiEvents.send("Carta rimossa dalla collezione")
                 } else {
-                    // Invece del Toast:
-                    _uiEvents.send("Nessuna copia presente!")
+                    _uiEvents.send("Nessuna copia presente")
                 }
             } catch (e: Exception) {
                 Log.e("FUTA_LOG", "Errore rimozione: ${e.message}")
@@ -100,9 +119,8 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
     fun nukeCollection() {
         viewModelScope.launch {
             try {
-                cardDao.deleteAll()
-                // Usiamo lo stesso stile delle altre notifiche
-                _uiEvents.send("Collezione svuotata con successo! 🏴‍☠️")
+                cardDao.deleteAllUserCards()
+                _uiEvents.send("Collezione svuotata! 🏴‍☠️")
             } catch (e: Exception) {
                 _uiEvents.send("Errore durante lo svuotamento")
             }

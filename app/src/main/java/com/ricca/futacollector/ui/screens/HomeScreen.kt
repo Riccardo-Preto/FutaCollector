@@ -29,11 +29,9 @@ import com.ricca.futacollector.viewmodel.CollectionViewModel
 fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel = viewModel()) {
     val collection by viewModel.collectionCards.collectAsState()
 
-    // Calcolo statistiche rapide
+    // Calcolo statistiche
     val totalCards = collection.sumOf { it.count }
-    val totalPrice = collection.sumOf { item ->
-        (item.card.marketPrice.toDoubleOrNull() ?: 0.0) * item.count
-    }
+    val totalPrice = collection.sumOf { it.card.marketPrice * it.count }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -46,8 +44,6 @@ fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel 
                     .fillMaxWidth()
                     .height(200.dp)
             ) {
-                // Qui usiamo l'immagine di Luffy che abbiamo pulito nei messaggi precedenti
-                // Assicurati di averla messa nei drawable (es. luffy_banner)
                 Image(
                     painter = painterResource(id = R.drawable.op_01),
                     contentDescription = null,
@@ -78,7 +74,9 @@ fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel 
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatCard(label = "Carte", value = totalCards.toString(), modifier = Modifier.weight(1f))
-                StatCard(label = "Valore", value = "€${String.format("%.2f", totalPrice)}", modifier = Modifier.weight(1f))
+                // Formattazione prezzo sicura
+                val formattedPrice = "€%.2f".format(totalPrice)
+                StatCard(label = "Valore", value = formattedPrice, modifier = Modifier.weight(1f))
             }
         }
 
@@ -95,6 +93,7 @@ fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel 
         // 4. LISTA ORIZZONTALE ULTIME CARTE
         item {
             val lastAdded = collection.takeLast(5).reversed()
+
             if (lastAdded.isEmpty()) {
                 Text(
                     "Nessuna carta aggiunta recentemente",
@@ -108,9 +107,18 @@ fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel 
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(lastAdded) { item ->
+                        // --- FIX QUI: Gestione sicura del nullo ---
+                        val safeImage = item.card.image ?: ""
+
+                        val imageModel = if (safeImage.startsWith("http")) {
+                            safeImage
+                        } else {
+                            "file:///android_asset/immagini_ottimizzate/$safeImage"
+                        }
+
                         AsyncImage(
-                            model = item.card.image,
-                            contentDescription = null,
+                            model = imageModel,
+                            contentDescription = item.card.name ?: "Carta",
                             modifier = Modifier
                                 .width(120.dp)
                                 .aspectRatio(0.7f)

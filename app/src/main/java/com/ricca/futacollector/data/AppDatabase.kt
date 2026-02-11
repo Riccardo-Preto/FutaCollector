@@ -4,11 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.ricca.futacollector.data.Card
-import com.ricca.futacollector.data.CardDao
 
-
-@Database(entities = [Card::class], version = 1)
+@Database(entities = [Card::class, CardSetEntity::class, UserCardEntity::class], version = 4)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun cardDao(): CardDao
 
@@ -21,8 +18,13 @@ abstract class AppDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "futa_database"
-                ).build()
+                    "futa_database" // Nome del DB interno all'app
+                )
+                    // Questa riga dice a Room: "Invece di creare un DB vuoto,
+                    // copia quello che trovi nella cartella assets"
+                    .createFromAsset("collezione_one_piece.db")
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }
