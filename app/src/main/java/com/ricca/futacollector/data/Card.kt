@@ -32,9 +32,9 @@ data class Card(
     @ColumnInfo(name = "card_power") val power: String?,
     @ColumnInfo(name = "counter_amount") val counter: String?,
     @ColumnInfo(name = "attribute") val attribute: String?,
+    @ColumnInfo(name = "api_image_id") val apiImageId: String?,
+    @ColumnInfo(name = "card_text") val effect: String?,
+    @ColumnInfo(name = "set_id") val setId: String?,
+    @ColumnInfo(name = "sub_types") val subTypes: String? = ""
 
-    @ColumnInfo(name = "verificata") val isVerified: Int = 0,
-    @ColumnInfo(name = "note_revisione") val revisionNotes: String? = null,
-
-    @ColumnInfo(name = "set_id") val setId: String?
 )

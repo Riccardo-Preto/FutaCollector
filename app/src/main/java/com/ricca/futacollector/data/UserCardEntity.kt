@@ -6,7 +6,9 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "user_collection")
 data class UserCardEntity(
-    @PrimaryKey @ColumnInfo(name = "card_id") val cardId: String,
-    @ColumnInfo(name = "count") val count: Int = 1
+    @PrimaryKey
+    @ColumnInfo(name = "card_id")
+    val cardId: String,
+    @ColumnInfo(name = "count")
+    val count: Int = 1
 )
-

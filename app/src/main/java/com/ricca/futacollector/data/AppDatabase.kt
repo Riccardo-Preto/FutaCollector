@@ -23,7 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // Questa riga dice a Room: "Invece di creare un DB vuoto,
                     // copia quello che trovi nella cartella assets"
                     .createFromAsset("collezione_one_piece.db")
-                    .fallbackToDestructiveMigration()
+                    //.fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

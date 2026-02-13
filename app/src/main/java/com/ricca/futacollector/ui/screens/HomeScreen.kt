@@ -75,7 +75,7 @@ fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel 
             ) {
                 StatCard(label = "Carte", value = totalCards.toString(), modifier = Modifier.weight(1f))
                 // Formattazione prezzo sicura
-                val formattedPrice = "€%.2f".format(totalPrice)
+                val formattedPrice = if (totalPrice <= 0.0) "N/A" else "€%.2f".format(totalPrice)
                 StatCard(label = "Valore", value = formattedPrice, modifier = Modifier.weight(1f))
             }
         }
