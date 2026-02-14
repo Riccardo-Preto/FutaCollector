@@ -23,6 +23,16 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.*
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ricca.futacollector.viewmodel.DeckViewModel
+import com.ricca.futacollector.viewmodel.DeckViewModelFactory
+import com.ricca.futacollector.data.AppDatabase
+import androidx.compose.material.icons.filled.*
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 
 sealed class Screen(
     val route: String,
@@ -32,64 +42,33 @@ sealed class Screen(
     object Home : Screen("home", "Home", Icons.Default.Home)
     object Search : Screen("search", "Cerca", Icons.Default.Search)
     object Collection : Screen("collection", "Collezione", Icons.Default.Collections)
-    object Settings : Screen("settings", "Impostazioni", Icons.Default.Settings)
+    object Settings : Screen("settings", "Menu", Icons.Default.Settings)
+    object DeckList : Screen("deck_list", "Mazzi", Icons.Default.Style)
 }
 
 @Composable
 fun AppNavigation(
     darkTheme: Boolean,
     onDarkThemeToggle: (Boolean) -> Unit,
-    collectionViewModel: CollectionViewModel // <- passato da MainActivity
+    collectionViewModel: CollectionViewModel
 ) {
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(Unit) {
-        collectionViewModel.uiEvents.collect { messaggio ->
-            snackbarHostState.currentSnackbarData?.dismiss()
-            val job = launch {
-                snackbarHostState.showSnackbar(
-                    message = messaggio,
-                    duration = SnackbarDuration.Indefinite
-                )
-            }
-            kotlinx.coroutines.delay(1300)
-            snackbarHostState.currentSnackbarData?.dismiss()
-            job.cancel()
-        }
-    }
+    // --- INIZIALIZZAZIONE DECK VIEWMODEL ---
+    val context = LocalContext.current
+    val db = remember { AppDatabase.getDatabase(context) }
+    val deckDao = remember { db.deckDao() }
+    val cardDao = remember { db.cardDao() } // Recuperiamo il cardDao
+
+    val deckViewModel: DeckViewModel = viewModel(
+        factory = DeckViewModelFactory(deckDao, cardDao) // Li passiamo entrambi qui
+    )
+
+    // ... (LaunchedEffect e Scaffold rimangono uguali) ...
 
     Scaffold(
-        snackbarHost = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 180.dp)
-            ) {
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier.align(Alignment.TopCenter)
-                ) { data ->
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .fillMaxWidth(0.9f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            text = data.visuals.message,
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-        },
+        // ... (snackbarHost uguale) ...
         bottomBar = {
             BottomBar(navController = navController, viewModel = collectionViewModel)
         }
@@ -116,6 +95,54 @@ fun AppNavigation(
                     }
                 )
             }
+            // --- CORREZIONE QUI ---
+            composable(Screen.DeckList.route) {
+                DeckListScreen(
+                    navController = navController,
+                    viewModel = deckViewModel,
+                    onNavigateToDetail = { id, name ->
+                        navController.navigate("deck_detail/$id/$name")
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "select_leader/{deckName}",
+                arguments = listOf(navArgument("deckName") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val deckName = backStackEntry.arguments?.getString("deckName") ?: "Nuovo Mazzo"
+
+                LeaderSelectionScreen(
+                    collectionViewModel = collectionViewModel,
+                    onBack = { navController.popBackStack() },
+                    onLeaderSelected = { leaderId ->
+                        // 1. Creiamo il mazzo nel DB
+                        deckViewModel.createDeck(deckName, leaderId)
+
+                        // 2. Torniamo alla lista mazzi (rimuovendo la selezione leader dallo stack)
+                        navController.popBackStack(Screen.DeckList.route, inclusive = false)
+                    }
+                )
+            }
+
+            composable(
+                route = "deck_detail/{deckId}/{deckName}",
+                arguments = listOf(
+                    navArgument("deckId") { type = NavType.IntType },
+                    navArgument("deckName") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val deckId = backStackEntry.arguments?.getInt("deckId") ?: 0
+                val deckName = backStackEntry.arguments?.getString("deckName") ?: ""
+
+                DeckDetailScreen(
+                    deckId = deckId,
+                    deckName = deckName,
+                    viewModel = deckViewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     darkThemeEnabled = darkTheme,
@@ -127,6 +154,7 @@ fun AppNavigation(
     }
 }
 
+
 @Composable
 fun BottomBar(
     navController: NavHostController,
@@ -136,21 +164,39 @@ fun BottomBar(
         Screen.Home,
         Screen.Search,
         Screen.Collection,
+        Screen.DeckList,
         Screen.Settings
     )
 
     NavigationBar {
-        val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentDestination = navBackStackEntry?.destination
+        val currentRoute = currentDestination?.route
 
         items.forEach { screen ->
+            // Verifichiamo se la tab è selezionata (inclusi i sotto-percorsi per i Mazzi)
+            val isSelected = currentRoute == screen.route ||
+                    (screen == Screen.DeckList && currentRoute?.contains("select_leader") == true)
+
             NavigationBarItem(
-                selected = currentRoute == screen.route,
+                selected = isSelected,
                 onClick = {
-                    if (screen == Screen.Search && currentRoute == Screen.Search.route) {
-                        viewModel.resetSearchOnTabReselect()
+                    if (currentRoute == screen.route) {
+                        // Siamo già nella "Home" della Tab:
+                        // Se è Search, potresti voler resettare la ricerca
+                        if (screen == Screen.Search) {
+                            viewModel.clearSearch()
+                        }
+                    } else if (isSelected) {
+                        // Siamo in una sotto-pagina (es: Selezione Leader): torna alla root della Tab
+                        navController.popBackStack(screen.route, inclusive = false)
                     } else {
+                        // Navigazione standard tra Tab diverse
                         navController.navigate(screen.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            // Questo evita di accumulare una pila infinita di destinazioni
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
                             launchSingleTop = true
                             restoreState = true
                         }

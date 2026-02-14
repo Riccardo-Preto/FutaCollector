@@ -13,6 +13,7 @@ import com.ricca.futacollector.data.api.RetrofitInstance
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 /**
@@ -186,4 +187,16 @@ class CollectionViewModel(
             }
         }
     }
+
+    fun getLeadersOnly(): Flow<List<Card>> = flow {
+        val results = cardDao.getLeadersForSelection()
+
+        // DEBUG: Controlliamo cosa arriva davvero dal DB
+        results.take(3).forEach {
+            Log.d("DB_CHECK", "ID: ${it.id} | Nome: ${it.name} | Immagine: ${it.image}")
+        }
+
+        emit(results)
+    }.flowOn(Dispatchers.IO)
 }
+

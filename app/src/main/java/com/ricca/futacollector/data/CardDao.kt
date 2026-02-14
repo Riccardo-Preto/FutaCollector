@@ -8,7 +8,13 @@ import kotlinx.coroutines.flow.Flow
 abstract class CardDao {
 
     // 1. La tua funzione esistente (Resta uguale, è la nostra "base")
-    @Query("SELECT * FROM cards WHERE nome LIKE '%' || :query || '%' OR id LIKE '%' || :query || '%' ORDER BY id ASC")
+    @Query("""
+    SELECT * FROM cards 
+    WHERE nome LIKE '%' || :query || '%' 
+    OR id LIKE '%' || :query || '%' 
+    OR card_type LIKE '%' || :query || '%' -- <--- AGGIUNGI QUESTA RIGA
+    ORDER BY id ASC
+""")
     abstract suspend fun searchInDatabase(query: String): List<Card>
 
     open suspend fun searchAdvanced(query: String): List<Card> {
@@ -33,6 +39,8 @@ abstract class CardDao {
             }
         }
     }
+    @Query("SELECT * FROM cards WHERE card_type = 'Leader' OR card_type = 'LEADER' ORDER BY id ASC")
+    abstract suspend fun getLeadersForSelection(): List<Card>
 
     @Query("SELECT * FROM cards WHERE set_id = :setId ORDER BY id ASC")
     abstract suspend fun getCardsBySet(setId: String): List<Card>
