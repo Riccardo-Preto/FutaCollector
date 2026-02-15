@@ -17,12 +17,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ricca.futacollector.viewmodel.CollectionViewModel
+import com.ricca.futacollector.viewmodel.DeckViewModel
 
 @Composable
 fun SettingsScreen(
     darkThemeEnabled: Boolean,
     onDarkThemeToggle: (Boolean) -> Unit,
-    viewModel: CollectionViewModel
+    viewModel: CollectionViewModel,
+    deckViewModel: DeckViewModel
 ) {
     val collection by viewModel.collectionCards.collectAsState()
     val context = LocalContext.current
@@ -92,38 +94,89 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Tasto Reset
-        var showDeleteDialog by remember { mutableStateOf(false) }
 
-        Button(
-            onClick = { showDeleteDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.error
-            ),
-            shape = RoundedCornerShape(12.dp)
+        var showDeleteCollectionDialog by remember { mutableStateOf(false) }
+        var showDeleteDecksDialog by remember { mutableStateOf(false) }
+
+        Text("Gestione Dati", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)),
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Text("Svuota Collezione")
+            Column(modifier = Modifier.padding(16.dp)) {
+
+                // Bottone Svuota Collezione (quello che avevi già)
+                Button(
+                    onClick = { showDeleteCollectionDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Svuota Collezione")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // NUOVO Bottone Svuota Mazzi
+                Button(
+                    onClick = { showDeleteDecksDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Elimina Tutti i Mazzi")
+                }
+            }
+        }
+
+        // --- DIALOG CONFERMA MAZZI ---
+        if (showDeleteDecksDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDecksDialog = false },
+                title = { Text("Eliminare tutti i mazzi?") },
+                text = { Text("Questa azione rimuoverà definitivamente tutti i mazzi creati. Le carte in collezione non verranno toccate.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            deckViewModel.nukeDecks()
+                            showDeleteDecksDialog = false
+                        }
+                    ) {
+                        Text("SÌ, ELIMINA MAZZI", color = Color.Red, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDecksDialog = false }) { Text("Annulla") }
+                }
+            )
         }
 
         // Dialog di conferma per il Reset
-        if (showDeleteDialog) {
+        if (showDeleteCollectionDialog) {
             AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
+                onDismissRequest = { showDeleteCollectionDialog = false },
                 title = { Text("Sei sicuro?") },
                 text = { Text("Questa azione cancellerà tutte le carte salvate nel database della tua collezione. Le carte del database generale rimarranno intatte.") },
                 confirmButton = {
                     TextButton(
                         onClick = {
                             viewModel.nukeCollection()
-                            showDeleteDialog = false
+                            showDeleteCollectionDialog = false
                         }
                     ) {
                         Text("SÌ, CANCELLA TUTTO", color = Color.Red)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) { Text("Annulla") }
+                    TextButton(onClick = { showDeleteCollectionDialog = false }) { Text("Annulla") }
                 }
             )
         }

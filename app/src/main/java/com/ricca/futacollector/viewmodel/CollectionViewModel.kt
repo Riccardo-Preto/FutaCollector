@@ -142,6 +142,13 @@ class CollectionViewModel(
 
     fun resetSearchOnTabReselect() {
         clearSearch()
+
+        viewModelScope.launch {
+            // Resetta lo scroll della lista dei Set
+            listState?.scrollToItem(0)
+            // Resetta lo scroll della griglia dei risultati (per sicurezza)
+            gridState?.scrollToItem(0)
+        }
     }
 
     // Aggiungi questi dentro la classe CollectionViewModel
@@ -198,5 +205,14 @@ class CollectionViewModel(
 
         emit(results)
     }.flowOn(Dispatchers.IO)
+
+    // In CollectionViewModel.kt
+    val collectionGridState = LazyGridState()
+
+    fun resetCollectionScroll() {
+        viewModelScope.launch {
+            collectionGridState.scrollToItem(0)
+        }
+    }
 }
 

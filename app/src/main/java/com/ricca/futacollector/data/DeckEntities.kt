@@ -11,20 +11,23 @@ data class Deck(
     val leaderCardId: String // L'ID della carta Leader (es. "OP01-001")
 )
 
+// In com.ricca.futacollector.data.DeckCard
 @Entity(
     tableName = "deck_cards",
-    primaryKeys = ["deckId", "cardId"],
+    primaryKeys = ["deckId", "cardId", "isConsidering"],
     foreignKeys = [
         ForeignKey(
             entity = Deck::class,
             parentColumns = ["id"],
             childColumns = ["deckId"],
-            onDelete = ForeignKey.CASCADE // Se cancelli il mazzo, si cancellano le sue carte
+            onDelete = ForeignKey.CASCADE
         )
     ]
 )
 data class DeckCard(
     val deckId: Int,
     val cardId: String,
-    val quantity: Int
+    val quantity: Int,
+    val isConsidering: Boolean = false,
+    val orderedQuantity: Int = 0
 )

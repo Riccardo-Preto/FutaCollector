@@ -20,30 +20,55 @@ interface DeckDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDeckCard(deckCard: DeckCard)
 
-    @Query("DELETE FROM deck_cards WHERE deckId = :deckId AND cardId = :cardId")
-    suspend fun removeCardFromDeck(deckId: Int, cardId: String)
-
     @Transaction
     @Query("""
-    SELECT 
-        dc.cardId, 
-        dc.quantity as countInDeck,
-        c.nome as cardName, 
-        c.card_image as cardImage, 
-        c.card_color as cardColor,
-        c.card_type as cardType,
-        c.card_cost as cardCost,
-        (SELECT count FROM user_collection WHERE card_id = dc.cardId) as countInCollection
-    FROM deck_cards dc
-    JOIN cards c ON dc.cardId = c.id
-    JOIN decks d ON dc.deckId = d.id
-    WHERE dc.deckId = :deckId 
-    AND dc.cardId != d.leaderCardId  -- <--- Esclude il leader dal conteggio e dalla lista
-""")
+        SELECT 
+            dc.cardId, 
+            dc.quantity as countInDeck,
+            dc.isConsidering,
+            dc.orderedQuantity,
+            c.nome as cardName, 
+            c.card_image as cardImage, 
+            c.card_color as cardColor,
+            c.card_type as cardType,
+            c.card_cost as cardCost,
+            COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0) as countInCollection
+        FROM deck_cards dc
+        JOIN cards c ON dc.cardId = c.id
+        JOIN decks d ON dc.deckId = d.id
+        WHERE dc.deckId = :deckId 
+        AND dc.cardId != d.leaderCardId
+    """)
     fun getDeckDetails(deckId: Int): Flow<List<DeckWithCount>>
+
+    @Query("UPDATE deck_cards SET orderedQuantity = :newOrderedQty WHERE deckId = :deckId AND cardId = :cardId AND isConsidering = :isConsidering")
+    suspend fun updateOrderedQuantity(deckId: Int, cardId: String, isConsidering: Boolean, newOrderedQty: Int)
+
+    @Query("UPDATE deck_cards SET quantity = :newQty WHERE deckId = :deckId AND cardId = :cardId AND isConsidering = :isConsidering")
+    suspend fun updateCardQuantity(deckId: Int, cardId: String, isConsidering: Boolean, newQty: Int)
+
+    @Query("SELECT * FROM deck_cards WHERE deckId = :deckId AND cardId = :cardId AND isConsidering = :isConsidering")
+    suspend fun getSpecificDeckCard(deckId: Int, cardId: String, isConsidering: Boolean): DeckCard?
+
+    @Query("DELETE FROM deck_cards WHERE deckId = :deckId AND cardId = :cardId AND isConsidering = :isConsidering")
+    suspend fun deleteSpecificDeckCard(deckId: Int, cardId: String, isConsidering: Boolean)
+
+    // Elimina tutti i mazzi
+    @Query("DELETE FROM decks")
+    suspend fun deleteAllDecks()
+
+    // Elimina tutte le carte associate ai mazzi (utile se non hai il CASCADE)
+    @Query("DELETE FROM deck_cards")
+    suspend fun deleteAllDeckCards()
+
+    // Operazione atomica per resettare tutto il comparto mazzi
+    @Transaction
+    suspend fun nukeAllDeckData() {
+        deleteAllDeckCards()
+        deleteAllDecks()
+    }
 }
 
-// Data class per mappare i risultati della query
 data class DeckWithCount(
     val cardId: String,
     val countInDeck: Int,
@@ -52,16 +77,7 @@ data class DeckWithCount(
     val cardColor: String?,
     val cardType: String?,
     val cardCost: String?,
-    val countInCollection: Int? // Se nullo, l'utente ha 0 copie
-)
-
-// Creiamo una classe di supporto per il risultato della JOIN
-data class DeckCardDetails(
-    val cardId: String,
-    val name: String,
-    val image: String?,
-    val quantity: Int,
-    val color: String?,
-    val cost: Int,
-    val type: String?
+    val countInCollection: Int, // Cambiato a Int (grazie a COALESCE è sempre almeno 0)
+    val isConsidering: Boolean,
+    val orderedQuantity: Int
 )

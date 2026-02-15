@@ -70,7 +70,7 @@ fun AppNavigation(
     Scaffold(
         // ... (snackbarHost uguale) ...
         bottomBar = {
-            BottomBar(navController = navController, viewModel = collectionViewModel)
+            BottomBar(navController = navController, viewModel = collectionViewModel, deckViewModel = deckViewModel)
         }
     ) { padding ->
         NavHost(
@@ -147,7 +147,8 @@ fun AppNavigation(
                 SettingsScreen(
                     darkThemeEnabled = darkTheme,
                     onDarkThemeToggle = onDarkThemeToggle,
-                    viewModel = collectionViewModel
+                    viewModel = collectionViewModel,
+                    deckViewModel = deckViewModel
                 )
             }
         }
@@ -158,7 +159,8 @@ fun AppNavigation(
 @Composable
 fun BottomBar(
     navController: NavHostController,
-    viewModel: CollectionViewModel
+    viewModel: CollectionViewModel,
+    deckViewModel : DeckViewModel
 ) {
     val items = listOf(
         Screen.Home,
@@ -170,33 +172,30 @@ fun BottomBar(
 
     NavigationBar {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
-        val currentDestination = navBackStackEntry?.destination
-        val currentRoute = currentDestination?.route
+        val currentRoute = navBackStackEntry?.destination?.route
 
         items.forEach { screen ->
-            // Verifichiamo se la tab è selezionata (inclusi i sotto-percorsi per i Mazzi)
+            // --- LOGICA SELEZIONE MIGLIORATA ---
+            // Consideriamo selezionata la tab Mazzi anche se siamo nel dettaglio o nella selezione leader
             val isSelected = currentRoute == screen.route ||
-                    (screen == Screen.DeckList && currentRoute?.contains("select_leader") == true)
+                    (screen == Screen.DeckList && (currentRoute?.contains("deck_detail") == true || currentRoute?.contains("select_leader") == true))
 
             NavigationBarItem(
                 selected = isSelected,
                 onClick = {
                     if (currentRoute == screen.route) {
-                        // Siamo già nella "Home" della Tab:
-                        // Se è Search, potresti voler resettare la ricerca
-                        if (screen == Screen.Search) {
-                            viewModel.clearSearch()
+                        // --- RESET CENTRALIZZATO ---
+                        when (screen) {
+                            Screen.Search -> viewModel.resetSearchOnTabReselect()
+                            Screen.DeckList -> deckViewModel.resetScroll()
+                            Screen.Collection -> viewModel.resetCollectionScroll()
+                            else -> {}
                         }
                     } else if (isSelected) {
-                        // Siamo in una sotto-pagina (es: Selezione Leader): torna alla root della Tab
                         navController.popBackStack(screen.route, inclusive = false)
                     } else {
-                        // Navigazione standard tra Tab diverse
                         navController.navigate(screen.route) {
-                            // Questo evita di accumulare una pila infinita di destinazioni
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
-                            }
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
