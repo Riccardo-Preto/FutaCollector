@@ -51,6 +51,9 @@ abstract class CardDao {
     @Query("SELECT * FROM cards WHERE id = :cardId LIMIT 1")
     abstract suspend fun getCardById(cardId: String): Card?
 
+    @Query("SELECT * FROM user_collection WHERE card_id = :cardId LIMIT 1")
+    abstract suspend fun getUserCardById(cardId: String): UserCardEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertUserCard(userCard: UserCardEntity)
 
@@ -119,4 +122,13 @@ abstract class CardDao {
         }
         return totalUpdated
     }
+
+    @Query("SELECT * FROM wishlist ORDER BY addedDate DESC")
+    abstract fun getWishlistItems(): Flow<List<WishlistEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun addToWishlist(item: WishlistEntity)
+
+    @Query("DELETE FROM wishlist WHERE cardId = :cardId")
+    abstract suspend fun removeFromWishlist(cardId: String)
 }

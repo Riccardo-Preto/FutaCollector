@@ -32,6 +32,9 @@ interface DeckDao {
             c.card_color as cardColor,
             c.card_type as cardType,
             c.card_cost as cardCost,
+            c.card_power as cardPower,    
+            c.counter_amount as cardCounter, 
+            c.market_price as marketPrice, 
             COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0) as countInCollection
         FROM deck_cards dc
         JOIN cards c ON dc.cardId = c.id
@@ -67,6 +70,7 @@ interface DeckDao {
         deleteAllDeckCards()
         deleteAllDecks()
     }
+
 }
 
 data class DeckWithCount(
@@ -77,7 +81,10 @@ data class DeckWithCount(
     val cardColor: String?,
     val cardType: String?,
     val cardCost: String?,
-    val countInCollection: Int, // Cambiato a Int (grazie a COALESCE è sempre almeno 0)
+    val cardPower: String?,
+    val cardCounter: String?,
+    val marketPrice: Double?,
+    val countInCollection: Int,
     val isConsidering: Boolean,
     val orderedQuantity: Int
 )

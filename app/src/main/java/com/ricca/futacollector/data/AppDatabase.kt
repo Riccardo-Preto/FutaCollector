@@ -10,10 +10,11 @@ import androidx.room.RoomDatabase
         Card::class,
         CardSetEntity::class,
         UserCardEntity::class,
-        Deck::class,      // Nuova
-        DeckCard::class   // Nuova
+        Deck::class,
+        DeckCard::class,
+        WishlistEntity::class
     ],
-    version = 5
+    version = 6
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun cardDao(): CardDao

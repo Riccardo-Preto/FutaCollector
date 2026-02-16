@@ -1,5 +1,7 @@
 package com.ricca.futacollector.ui.screens
 
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +10,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,13 +21,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.viewModelScope
 import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
+import com.ricca.futacollector.CardItemView
+import com.ricca.futacollector.data.AppConstants
+import com.ricca.futacollector.data.Card
 import com.ricca.futacollector.data.DeckWithCount
+import com.ricca.futacollector.viewmodel.CollectionViewModel
 import com.ricca.futacollector.viewmodel.DeckViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,45 +46,55 @@ fun DeckDetailScreen(
     deckId: Int,
     deckName: String,
     viewModel: DeckViewModel,
+    collectionViewModel: CollectionViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val deckItems by viewModel.getDeckDetails(deckId).collectAsState(initial = emptyList())
+    val allDecks by viewModel.allDecks.collectAsState()
+    val currentDeck = allDecks.find { it.deck.id == deckId }
 
-    // Filtriamo Main e Considering
+    val leaderColors = remember(currentDeck) {
+        currentDeck?.leaderCard?.color?.split(Regex("[/\\s+]"))?.filter { it.isNotBlank() } ?: emptyList()
+    }
+
     val mainDeck = deckItems.filter { !it.isConsidering }
     val consideringDeck = deckItems.filter { it.isConsidering }
     val totalMainCards = mainDeck.sumOf { it.countInDeck }
 
     var showImportDialog by remember { mutableStateOf(false) }
+    var showManualAddSearch by remember { mutableStateOf(false) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val scope = rememberCoroutineScope()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text(deckName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(deckName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                         Text("$totalMainCards / 50 carte", style = MaterialTheme.typography.labelSmall)
                     }
                 },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Indietro")
-                    }
-                },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } },
                 actions = {
-                    IconButton(onClick = { showImportDialog = true }) {
-                        Icon(Icons.Default.ContentPaste, contentDescription = "Importa")
+                    IconButton(onClick = { showManualAddSearch = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Aggiungi")
                     }
                 }
             )
         }
     ) { padding ->
         if (deckItems.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Mazzo vuoto. Importa una lista!", color = Color.Gray)
-            }
+            EmptyDeckChoice(
+                onImportClick = { showImportDialog = true },
+                onManualClick = { showManualAddSearch = true },
+                modifier = Modifier.padding(padding)
+            )
         } else {
-            // Passiamo alla GRIGLIA a 3 colonne
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize().padding(padding),
@@ -77,17 +102,15 @@ fun DeckDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // SEZIONE MAIN DECK
+
                 item(span = { GridItemSpan(3) }) {
                     SectionHeader(title = "Main Deck", count = totalMainCards, target = 50)
                 }
 
                 items(mainDeck) { item ->
-                    // Nel Main Deck, usiamo il conteggio totale della collezione
-                    DeckCardGridItem(item, deckId, viewModel, availableInCollection = item.countInCollection)
+                    DeckCardGridItem(item, deckId, viewModel, collectionViewModel, availableInCollection = item.countInCollection)
                 }
 
-                // SEZIONE CONSIDERING
                 if (consideringDeck.isNotEmpty()) {
                     item(span = { GridItemSpan(3) }) {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -95,19 +118,14 @@ fun DeckDetailScreen(
                     }
 
                     items(consideringDeck) { item ->
-                        // --- LOGICA CRUCIALE ---
-                        // Troviamo quante copie di questa carta sono già usate nel Main Deck
                         val usedInMain = mainDeck.find { it.cardId == item.cardId }?.countInDeck ?: 0
-                        // Le copie disponibili per il Considering sono: Totali - Usate nel Main
                         val residualCollection = (item.countInCollection - usedInMain).coerceAtLeast(0)
-
-                        DeckCardGridItem(
-                            item = item,
-                            deckId = deckId,
-                            viewModel = viewModel,
-                            availableInCollection = residualCollection
-                        )
+                        DeckCardGridItem(item, deckId, viewModel, collectionViewModel, availableInCollection = residualCollection)
                     }
+                }
+
+                item(span = { GridItemSpan(3) }) {
+                    DeckStatsDashboard(deckItems)
                 }
 
                 item(span = { GridItemSpan(3) }) { Spacer(modifier = Modifier.height(80.dp)) }
@@ -123,6 +141,27 @@ fun DeckDetailScreen(
                 }
             )
         }
+
+        if (showManualAddSearch) {
+            ManualAddCardDialog(
+                deckId = deckId,
+                onDismiss = {
+                    showManualAddSearch = false
+                    collectionViewModel.clearSearch()
+                },
+                onCardSelected = { card, qty ->
+                    viewModel.addMultipleCardsToDeck(deckId, card, qty)
+                    Toast.makeText(
+                        context,
+                        "Aggiunto $qty x ${card.name}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                viewModel = viewModel,
+                collectionViewModel = collectionViewModel,
+                leaderColors = leaderColors
+            )
+        }
     }
 }
 
@@ -132,83 +171,86 @@ fun DeckCardGridItem(
     item: DeckWithCount,
     deckId: Int,
     viewModel: DeckViewModel,
+    collectionViewModel: CollectionViewModel,
     availableInCollection : Int
 ) {
-
     val ordered = item.orderedQuantity
     val needed = item.countInDeck
+    var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    // --- FIX BUG GIALLO -> VERDE ---
-    // Il bordo deve essere giallo solo se NON hai abbastanza carte in collezione
     val borderColor = when {
-        availableInCollection >= needed -> Color(0xFF4CAF50) // Verde
-        (availableInCollection + ordered) >= needed -> Color(0xFFFFC107) // Giallo
-        else -> Color(0xFFEF5350) // Rosso
+        availableInCollection >= needed -> Color(0xFF4CAF50)
+        (availableInCollection + ordered) >= needed -> Color(0xFFFFC107)
+        else -> Color(0xFFEF5350)
     }
 
-    var showMenu by remember { mutableStateOf(false) }
-
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
+    Box {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .aspectRatio(0.72f)
-                .clip(RoundedCornerShape(8.dp))
-                .border(2.dp, borderColor, RoundedCornerShape(8.dp))
                 .combinedClickable(
                     onClick = { /* Dettaglio */ },
                     onLongClick = { showMenu = true }
                 )
         ) {
-            // --- FIX IMMAGINI ---
-            val cardImage = item.cardImage ?: ""
-            val imageModel = if (cardImage.startsWith("http")) cardImage
-            else "file:///android_asset/immagini_ottimizzate/$cardImage"
+            Box(
+                modifier = Modifier
+                    .aspectRatio(0.72f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(2.dp, borderColor, RoundedCornerShape(8.dp))
+            ) {
+                val cardImage = item.cardImage ?: ""
+                val imageModel = if (cardImage.startsWith("http")) cardImage
+                else "file:///android_asset/immagini_ottimizzate/$cardImage"
 
-            if (cardImage.isNotBlank()) {
                 AsyncImage(
                     model = imageModel,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    onState = { state ->
-                        if (state is AsyncImagePainter.State.Error) {
-                            android.util.Log.e("DECK_IMAGE_ERR", "Non trovo: $imageModel")
-                        }
-                    }
+                    contentScale = ContentScale.Crop
                 )
-            } else {
-                // Fallback se l'immagine è vuota nel DB
-                Box(Modifier.fillMaxSize().background(Color.DarkGray), contentAlignment = Alignment.Center) {
-                    Text(item.cardId, color = Color.White, fontSize = 10.sp)
+
+                Surface(
+                    Modifier.align(Alignment.BottomStart), // <--- Allineato a SINISTRA
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(topEnd = 8.dp)
+                ) {
+                    val eurPrice = (item.marketPrice ?: 0.0) * AppConstants.CONVERSION_RATE
+                    val totalPriceForCopies = eurPrice * needed
+                    Text(
+                        text = "€${"%.2f".format(totalPriceForCopies)}",
+                        color = Color(0xFF4CAF50), // Verde per i soldi
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Surface(
+                    Modifier.align(Alignment.BottomEnd),
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(topStart = 8.dp)
+                ) {
+                    Text("x$needed", color = Color.White, modifier = Modifier.padding(horizontal = 4.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            // Badge quantità
-            Surface(
-                Modifier.align(Alignment.BottomEnd),
-                color = Color.Black.copy(alpha = 0.7f),
-                shape = RoundedCornerShape(topStart = 8.dp)
-            ) {
-                Text("x$needed", color = Color.White, modifier = Modifier.padding(horizontal = 4.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        // Pallini (Stessa logica del bordo per coerenza)
-        Row(modifier = Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.Center) {
-            repeat(needed) { index ->
-                val dotColor = when {
-                    index < availableInCollection -> Color(0xFF4CAF50) // Verde
-                    index < (availableInCollection + ordered) -> Color(0xFFFFC107) // Giallo
-                    else -> Color.Gray.copy(alpha = 0.4f) // Grigio
+            Row(modifier = Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.Center) {
+                repeat(needed) { index ->
+                    val dotColor = when {
+                        index < availableInCollection -> Color(0xFF4CAF50)
+                        index < (availableInCollection + ordered) -> Color(0xFFFFC107)
+                        else -> Color.Gray.copy(alpha = 0.4f)
+                    }
+                    Box(Modifier.padding(horizontal = 1.dp).size(7.dp).background(dotColor, CircleShape))
                 }
-                Box(Modifier.padding(horizontal = 1.dp).size(7.dp).background(dotColor, CircleShape))
             }
         }
 
-        // MENU CONTESTUALE
         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
             DropdownMenuItem(
-                text = { Text("Aggiungi 1 copia al mazzo") },
+                text = { Text("Aggiungi 1 copia") },
                 leadingIcon = { Icon(Icons.Default.Add, null) },
                 enabled = needed < 4,
                 onClick = {
@@ -216,9 +258,6 @@ fun DeckCardGridItem(
                     showMenu = false
                 }
             )
-
-            // --- GESTIONE ORDINATE ---
-            // Abilitato solo se mancano carte (rispetto a quelle che hai già usato)
             DropdownMenuItem(
                 text = { Text("Segna 1 come Ordinata") },
                 leadingIcon = { Icon(Icons.Default.LocalShipping, null) },
@@ -228,11 +267,9 @@ fun DeckCardGridItem(
                     showMenu = false
                 }
             )
-
-            // Opzione per diminuire le ordinate (utile per correggere errori)
             if (ordered > 0) {
                 DropdownMenuItem(
-                    text = { Text("Rimuovi 1 dalle Ordinate") },
+                    text = { Text("Rimuovi dalle Ordinate") },
                     leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, null) },
                     onClick = {
                         viewModel.updateOrderedQuantity(deckId, item.cardId, item.isConsidering, ordered - 1)
@@ -240,26 +277,45 @@ fun DeckCardGridItem(
                     }
                 )
             }
-
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-
             DropdownMenuItem(
                 text = { Text(if (item.isConsidering) "Sposta in Main" else "Sposta in Considering") },
                 leadingIcon = { Icon(Icons.Default.SwapHoriz, null) },
                 onClick = {
-                    // Passiamo availableInCollection qui!
                     viewModel.moveOneCard(deckId, item.cardId, item.isConsidering, availableInCollection)
                     showMenu = false
                 }
             )
-
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-
             DropdownMenuItem(
-                text = { Text("Rimuovi 1 copia dal mazzo", color = Color.Red) },
+                text = { Text("Rimuovi 1 copia", color = Color.Red) },
                 leadingIcon = { Icon(Icons.Default.Remove, null, tint = Color.Red) },
                 onClick = {
                     viewModel.updateCardQuantity(deckId, item.cardId, item.isConsidering, needed - 1)
+                    showMenu = false
+                }
+            )
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
+            DropdownMenuItem(
+                text = { Text("Aggiungi alla collezione") },
+                leadingIcon = { Icon(Icons.Default.LibraryAdd, null, tint = Color(0xFF4CAF50)) },
+                onClick = {
+                    // Usiamo lo scope del ViewModel per fare l'operazione in background
+                    viewModel.viewModelScope.launch(Dispatchers.IO) {
+                        // 1. Recuperiamo la carta completa dal database usando l'ID
+                        val fullCard = viewModel.getCardById(item.cardId)
+
+                        if (fullCard != null) {
+                            // 2. La aggiungiamo alla collezione
+                            collectionViewModel.addCardToCollection(fullCard)
+
+                            // 3. Feedback (i Toast vanno chiamati sul thread principale)
+                            launch(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "${fullCard.name} aggiunta alla collezione! ✅", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
                     showMenu = false
                 }
             )
@@ -294,5 +350,304 @@ fun SectionHeader(title: String, count: Int, target: Int?) {
                 )
             }
         }
+    }
+}
+
+@Composable
+fun EmptyDeckChoice(
+    onImportClick: () -> Unit,
+    onManualClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Style, null, modifier = Modifier.size(80.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+            Spacer(Modifier.height(16.dp))
+            Text("Il mazzo è vuoto", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = onManualClick, modifier = Modifier.fillMaxWidth(0.7f), shape = RoundedCornerShape(12.dp)) {
+                Icon(Icons.Default.Search, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Cerca carte")
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("oppure", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(onClick = onImportClick, modifier = Modifier.fillMaxWidth(0.7f), shape = RoundedCornerShape(12.dp)) {
+                Icon(Icons.Default.ContentPaste, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Importa lista")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun ManualAddCardDialog(
+    deckId: Int,
+    onDismiss: () -> Unit,
+    onCardSelected: (Card, Int) -> Unit,
+    viewModel: DeckViewModel,
+    collectionViewModel: CollectionViewModel,
+    leaderColors: List<String>
+) {
+    val searchQuery by collectionViewModel.searchQuery.collectAsState()
+    val allCards by collectionViewModel.searchResults.collectAsState()
+    val currentDeckItems by viewModel.getDeckDetails(deckId).collectAsState(initial = emptyList())
+    val focusManager = LocalFocusManager.current
+
+    val filteredByColor = remember(allCards, leaderColors, searchQuery) {
+        // Se non c'è ricerca e non ci sono colori, mostra tutto
+        if (leaderColors.isEmpty() && searchQuery.isBlank()) allCards
+        else {
+            // Appiattiamo tutto: se leaderColors è ["Red Green"], diventa ["red", "green"]
+            val flatLeaderColors = leaderColors
+                .flatMap { it.lowercase().split(Regex("[/\\s+]")) }
+                .filter { it.isNotBlank() }
+
+            allCards.filter { item ->
+                val cardColorRaw = item.card.color?.lowercase() ?: ""
+
+                // Logica: la carta passa se ALMENO UNO dei suoi colori
+                // è contenuto nella lista dei colori del leader (OR logico)
+                val colorMatch = flatLeaderColors.isEmpty() || flatLeaderColors.any { leaderCol ->
+                    cardColorRaw.contains(leaderCol)
+                }
+                colorMatch
+            }
+        }
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Ascolta gli eventi del ViewModel dentro il Dialog
+    LaunchedEffect(Unit) {
+        collectionViewModel.uiEvents.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { collectionViewModel.searchCards(it) },
+                            placeholder = { Text("Cerca nel database...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() })
+                        )
+                    },
+                    navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) } }
+                )
+            }
+        ) { padding ->
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredByColor) { item ->
+                    val inDeckCount = currentDeckItems.find { it.cardId == item.card.id }?.countInDeck ?: 0
+                    var showAddMenu by remember { mutableStateOf(false) }
+
+                    Box(
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .combinedClickable(
+                                onClick = { showAddMenu = true },
+                                onLongClick = { showAddMenu = true }
+                            )
+                    ) {
+                        CardItemView(
+                            card = item.card,
+                            count = item.count,
+                            onClick = null
+                        )
+
+                        if (inDeckCount > 0) {
+                            Surface(
+                                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = CircleShape,
+                                shadowElevation = 4.dp
+                            ) {
+                                Text(
+                                    text = "$inDeckCount",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Aggiungi 1 copia") },
+                                leadingIcon = { Icon(Icons.Default.Add, null) },
+                                onClick = { onCardSelected(item.card, 1); showAddMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Aggiungi 4 copie") },
+                                leadingIcon = { Icon(Icons.Default.AddCircle, null) },
+                                onClick = { onCardSelected(item.card, 4); showAddMenu = false }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeckStatsDashboard(items: List<DeckWithCount>) {
+    val mainDeck = items.filter { !it.isConsidering }
+    if (mainDeck.isEmpty()) return
+
+    // Calcolo del valore totale
+    val totalPriceUsd = mainDeck.sumOf { (it.marketPrice ?: 0.0) * it.countInDeck }
+    val totalPriceEur = totalPriceUsd * AppConstants.CONVERSION_RATE
+
+    // Raggruppamento costi (0-7+)
+    val costGroups = mainDeck
+        .groupBy { it.cardCost ?: "0" }
+        .mapValues { entry -> entry.value.sumOf { it.countInDeck } }
+
+    // Troviamo qual è il costo più frequente per scalare gli altri di conseguenza
+    val maxCardsInSingleCost = costGroups.values.maxOrNull() ?: 1
+
+    val counter2k = mainDeck.filter { it.cardCounter?.contains("2000") == true }.sumOf { it.countInDeck }
+    val counter1k = mainDeck.filter { it.cardCounter?.contains("1000") == true }.sumOf { it.countInDeck }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("ANALISI MAZZO", fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = "Valore stimato: € ${"%.2f".format(totalPriceEur)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF4CAF50), // Un bel verde "soldi"
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CounterBadge(label = "+2000", count = counter2k, color = Color(0xFF4CAF50))
+                    CounterBadge(label = "+1000", count = counter1k, color = Color(0xFF2196F3))
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Text("Distribuzione Costi", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+
+            // AREA GRAFICO CON ALTEZZA FISSA BLOCATA
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(120.dp) // Altezza totale fissa (Numeri + Barre + Etichette)
+                    .padding(top = 12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                (0..7).forEach { cost ->
+                    val label = if (cost == 7) "7+" else cost.toString()
+                    val count = if (cost == 7) {
+                        costGroups.filter { (it.key.toIntOrNull() ?: 0) >= 7 }.values.sum()
+                    } else {
+                        costGroups[cost.toString()] ?: 0
+                    }
+
+                    // Passiamo il valore massimo trovato per la proporzione
+                    CostBar(label = label, count = count, maxInDeck = maxCardsInSingleCost)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RowScope.CostBar(label: String, count: Int, maxInDeck: Int) {
+    val totalGraphHeight = 100.dp // Spazio totale per numero + barra + etichetta
+    val barAreaHeight = 70.dp    // Spazio riservato solo alla barra + numero sopra
+
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .height(totalGraphHeight),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom // Tutto schiacciato verso il basso
+    ) {
+        // Area della barra e del numero superiore
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f), // Prende tutto lo spazio sopra l'etichetta
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (count > 0) {
+                    Text(
+                        text = count.toString(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Spazio minimo tra numero e barra
+                Spacer(Modifier.height(2.dp))
+
+                // La Barra
+                val barHeight = if (count > 0) {
+                    val ratio = count.toFloat() / maxInDeck
+                    // Altezza massima della barra fisica: 50dp
+                    50.dp * ratio.coerceIn(0.1f, 1f)
+                } else {
+                    1.dp
+                }
+
+                Box(
+                    Modifier
+                        .width(18.dp)
+                        .height(barHeight)
+                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                        .background(
+                            if (count > 0) MaterialTheme.colorScheme.primary
+                            else Color.LightGray.copy(alpha = 0.3f)
+                        )
+                )
+            }
+        }
+
+        // Etichetta del costo (0, 1, 2...) sempre fissa alla base
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun CounterBadge(label: String, count: Int, color: Color) {
+    Surface(color = color.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp), border = BorderStroke(1.dp, color.copy(alpha = 0.5f))) {
+        Text("$label: $count", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color)
     }
 }

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.ricca.futacollector.CardItemView
+import com.ricca.futacollector.data.AppConstants
 import com.ricca.futacollector.ui.navigation.Screen
 import com.ricca.futacollector.viewmodel.CollectionViewModel
 
@@ -33,7 +34,7 @@ fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel 
 
     // Calcolo statistiche corretto (EUR)
     val totalCards = collection.sumOf { it.count }
-    val totalPriceEuro = collection.sumOf { it.card.marketPrice * it.count } * 0.92
+    val totalPriceEuro = collection.sumOf { it.card.marketPrice * it.count } * AppConstants.CONVERSION_RATE
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -45,12 +46,13 @@ fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel 
                 Text(
                     text = "La tua Dashboard",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.Black // Già corretto, perfetto
                 )
                 Text(
                     text = "Gestisci la tua collezione e i tuoi mazzi",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium // Aggiunto un po' di corpo
                 )
             }
         }
@@ -115,12 +117,12 @@ fun HomeScreen(navController: NavHostController, viewModel: CollectionViewModel 
             }
         }
 
-        // --- 4. ULTIME AGGIUNTE (Versione Top 3 Pulita) ---
+        // --- 4. ULTIME AGGIUNTE  ---
         item {
             Text(
                 text = "Ultime aggiunte",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Black,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
             )
         }
@@ -192,8 +194,17 @@ fun NavigationBanner(
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black // Cambiato da ExtraBold a Black
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), // Testo un po' più leggibile
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }

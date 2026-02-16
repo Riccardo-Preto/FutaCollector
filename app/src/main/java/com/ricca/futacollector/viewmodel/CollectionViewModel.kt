@@ -10,6 +10,7 @@ import com.ricca.futacollector.data.CardDao
 import com.ricca.futacollector.data.CardSetEntity
 import com.ricca.futacollector.data.UserCardEntity
 import com.ricca.futacollector.data.api.RetrofitInstance
+import com.ricca.futacollector.ui.screens.WishlistItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -54,6 +55,25 @@ class CollectionViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // --- WISHLIST ---
+    val wishlistCards: StateFlow<Map<String, List<WishlistItem>>> =
+        cardDao.getWishlistItems()
+            .map { entities ->
+                entities.mapNotNull { entity ->
+                    // Recuperiamo la Card completa dal DB
+                    val card = cardDao.getCardById(entity.cardId)
+                    if (card != null) {
+                        WishlistItem(
+                            card = card,
+                            quantity = entity.quantity,
+                            reason = entity.reason
+                        )
+                    } else null
+                }.groupBy { it.reason } // Raggruppa per "General" o "Nome Mazzo"
+            }
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     // --- EVENTI UI ---
     private val _uiEvents = Channel<String>()
     val uiEvents = _uiEvents.receiveAsFlow()
@@ -64,17 +84,30 @@ class CollectionViewModel(
     }
 
     fun addCardToCollection(card: Card) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val currentCount = collectionCards.value.find { it.card.id == card.id }?.count ?: 0
-                cardDao.insertUserCard(UserCardEntity(cardId = card.id, count = currentCount + 1))
-                _uiEvents.send("${card.name ?: "Carta"} aggiunta!")
+                // 1. Ora questa funzione funzionerà perché l'abbiamo aggiunta al DAO
+                val existingCard = cardDao.getUserCardById(card.id)
+
+                val newCount = if (existingCard != null) {
+                    existingCard.count + 1
+                } else {
+                    1
+                }
+
+                // 2. Inseriamo (o sostituiamo grazie a OnConflictStrategy.REPLACE)
+                cardDao.insertUserCard(UserCardEntity(cardId = card.id, count = newCount))
+
+                // 3. Log di verifica e notifica
+                Log.d("COLLECTION", "Aggiunta carta: ${card.id}, nuovo totale: $newCount")
+                _uiEvents.send("${card.name}: ora ne hai $newCount")
+
             } catch (e: Exception) {
+                Log.e("COLLECTION_ERR", "Errore durante l'aggiunta: ${e.message}")
                 _uiEvents.send("Errore nel salvataggio")
             }
         }
     }
-
     fun removeCardFromCollection(card: Card) {
         viewModelScope.launch {
             try {
@@ -212,6 +245,25 @@ class CollectionViewModel(
     fun resetCollectionScroll() {
         viewModelScope.launch {
             collectionGridState.scrollToItem(0)
+        }
+    }
+
+    fun addToWishlist(card: Card, quantity: Int = 1, reason: String = "General") {
+        viewModelScope.launch(Dispatchers.IO) {
+            cardDao.addToWishlist(
+                com.ricca.futacollector.data.WishlistEntity(
+                    cardId = card.id,
+                    quantity = quantity,
+                    reason = reason
+                )
+            )
+            _uiEvents.send("Aggiunta alla Wishlist! ✨")
+        }
+    }
+
+    fun removeFromWishlist(cardId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            cardDao.removeFromWishlist(cardId)
         }
     }
 }

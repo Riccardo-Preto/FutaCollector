@@ -21,13 +21,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
+import com.ricca.futacollector.data.AppConstants
 import com.ricca.futacollector.data.Card
 
 @Composable
 fun CardItemView(
     card: Card,
     count: Int,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // 1. Preparazione Colori e ID Estetica
@@ -64,7 +65,11 @@ fun CardItemView(
     Card(
         modifier = modifier
             .padding(4.dp)
-            .clickable { onClick() },
+            .then(
+                // 2. Aggiungi il clickable SOLO se onClick non è null
+                if (onClick != null) Modifier.clickable { onClick() }
+                else Modifier
+            ),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -173,7 +178,7 @@ fun CardItemView(
 @Composable
 fun PriceBadge(price: Double) {
     val isAvailable = price > 0.0
-    val priceInEuro = price * 0.92
+    val priceInEuro = price * AppConstants.CONVERSION_RATE
 
     Surface(
         shape = RoundedCornerShape(4.dp),

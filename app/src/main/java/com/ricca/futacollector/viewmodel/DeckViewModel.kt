@@ -185,6 +185,53 @@ class DeckViewModel(
             }
         }
     }
+
+    fun addSingleCardToDeck(deckId: Int, card: Card, isConsidering: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = deckDao.getSpecificDeckCard(deckId, card.id, isConsidering)
+            if (existing != null) {
+                if (existing.quantity < 4) {
+                    deckDao.updateCardQuantity(deckId, card.id, isConsidering, existing.quantity + 1)
+                }
+            } else {
+                deckDao.insertDeckCard(
+                    DeckCard(
+                        deckId = deckId,
+                        cardId = card.id,
+                        quantity = 1,
+                        isConsidering = isConsidering
+                    )
+                )
+            }
+        }
+    }
+
+    // NEL VIEWMODEL
+    fun addMultipleCardsToDeck(deckId: Int, card: Card, qtyToAdd: Int, isConsidering: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // DEBUG: Aggiungi questo log per vedere se l'ID è giusto
+            Log.d("DECK_ADD", "Aggiungo $qtyToAdd copie di ${card.id} al mazzo $deckId")
+
+            val existing = deckDao.getSpecificDeckCard(deckId, card.id, isConsidering)
+            val currentQty = existing?.quantity ?: 0
+            val newQty = (currentQty + qtyToAdd).coerceAtMost(4)
+
+            deckDao.insertDeckCard(
+                DeckCard(
+                    deckId = deckId,
+                    cardId = card.id,
+                    quantity = newQty,
+                    isConsidering = isConsidering,
+                    orderedQuantity = existing?.orderedQuantity ?: 0
+                )
+            )
+        }
+    }
+
+    // DeckViewModel.kt
+    suspend fun getCardById(cardId: String): Card? {
+        return cardDao.getCardById(cardId)
+    }
 }
 class DeckViewModelFactory(
     private val deckDao: DeckDao,

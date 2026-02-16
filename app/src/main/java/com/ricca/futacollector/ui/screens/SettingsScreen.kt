@@ -37,8 +37,9 @@ fun SettingsScreen(
     ) {
         Text(
             text = "Impostazioni",
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier.padding(vertical = 16.dp)
         )
 
         Spacer(modifier = Modifier.height(32.dp))

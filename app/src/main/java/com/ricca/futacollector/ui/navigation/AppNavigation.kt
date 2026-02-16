@@ -139,6 +139,7 @@ fun AppNavigation(
                     deckId = deckId,
                     deckName = deckName,
                     viewModel = deckViewModel,
+                    collectionViewModel = collectionViewModel,
                     onBack = { navController.popBackStack() }
                 )
             }

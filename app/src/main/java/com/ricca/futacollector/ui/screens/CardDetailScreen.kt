@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import com.ricca.futacollector.data.AppConstants
 import com.ricca.futacollector.data.Card
 import com.ricca.futacollector.ui.CardDetailMode
 import com.ricca.futacollector.getCardColorsList // Assicurati che il file components.kt sia salvato
@@ -244,7 +245,7 @@ fun MiniDetail(label: String, value: String?) {
 
 @Composable
 fun PriceTag(label: String, price: Double?) {
-    val priceInEuro = (price ?: 0.0) * 0.92
+    val priceInEuro = (price ?: 0.0) * AppConstants.CONVERSION_RATE
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
