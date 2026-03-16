@@ -70,6 +70,9 @@ abstract class CardDao {
     @Query("SELECT * FROM sets ORDER BY ordine_utente ASC")
     abstract fun getAllSets(): Flow<List<CardSetEntity>>
 
+    @Query("SELECT DISTINCT set_id FROM cards WHERE set_id IS NOT NULL")
+    abstract fun getSetIdsWithCards(): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertSets(sets: List<CardSetEntity>)
 

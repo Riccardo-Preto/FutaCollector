@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -49,6 +50,7 @@ fun SearchScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val cards by viewModel.searchResults.collectAsState()
     val sets by viewModel.allSets.collectAsState()
+    val setsWithCards by viewModel.setsWithCards.collectAsState()
     val showSetList by viewModel.showSetList.collectAsState()
 
     var selectedCard by remember { mutableStateOf<Card?>(null) }
@@ -65,21 +67,25 @@ fun SearchScreen(
 
     val filteredSets = when (selectedFilter) {
         "SETS" -> sets.filter {
-            it.id.startsWith("OP", true) ||
+            (it.id.startsWith("OP", true) ||
                     it.id.startsWith("EB", true) ||
-                    it.id.startsWith("PRB", true)
+                    it.id.startsWith("PRB", true)) &&
+                    setsWithCards.contains(it.id)
         }
-
         "STARTERS" -> sets.filter {
-            it.id.startsWith("ST", true) ||
-                    it.id.startsWith("LD", true)
+            (it.id.startsWith("ST", true) ||
+                    it.id.startsWith("LD", true)) &&
+                    setsWithCards.contains(it.id)
         }
-
         "PROMOS" -> sets.filter {
-            it.id.equals("P", true)
+            it.id.equals("P", true) &&
+                    setsWithCards.contains(it.id)
         }
-
-        else -> sets
+        "DON" -> sets.filter {
+            it.id == "DON" &&
+                    setsWithCards.contains(it.id)
+        }
+        else -> sets.filter { setsWithCards.contains(it.id) }
     }
 
     Column(
@@ -141,36 +147,17 @@ fun SearchScreen(
 
         // --- FILTRI ---
         if (showSetList) {
-            Row(
+            LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-
-                FilterChip(
-                    selected = selectedFilter == "ALL",
-                    onClick = { selectedFilter = "ALL" },
-                    label = { Text("Tutti") }
-                )
-
-                FilterChip(
-                    selected = selectedFilter == "SETS",
-                    onClick = { selectedFilter = "SETS" },
-                    label = { Text("Set") }
-                )
-
-                FilterChip(
-                    selected = selectedFilter == "STARTERS",
-                    onClick = { selectedFilter = "STARTERS" },
-                    label = { Text("Starter Deck") }
-                )
-
-                FilterChip(
-                    selected = selectedFilter == "PROMOS",
-                    onClick = { selectedFilter = "PROMOS" },
-                    label = { Text("Promo") }
-                )
+                item { FilterChip(selected = selectedFilter == "ALL", onClick = { selectedFilter = "ALL" }, label = { Text("Tutti") }) }
+                item { FilterChip(selected = selectedFilter == "SETS", onClick = { selectedFilter = "SETS" }, label = { Text("Set") }) }
+                item { FilterChip(selected = selectedFilter == "STARTERS", onClick = { selectedFilter = "STARTERS" }, label = { Text("Starter Deck") }) }
+                item { FilterChip(selected = selectedFilter == "PROMOS", onClick = { selectedFilter = "PROMOS" }, label = { Text("Promo") }) }
+                item { FilterChip(selected = selectedFilter == "DON", onClick = { selectedFilter = "DON" }, label = { Text("DON!!") }) }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

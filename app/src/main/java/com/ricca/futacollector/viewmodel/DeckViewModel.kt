@@ -232,6 +232,20 @@ class DeckViewModel(
     suspend fun getCardById(cardId: String): Card? {
         return cardDao.getCardById(cardId)
     }
+
+    fun addCardToCollectionFromDeck(
+        cardId: String,
+        onCardFound: (Card) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val fullCard = cardDao.getCardById(cardId)
+            if (fullCard != null) {
+                launch(Dispatchers.Main) {
+                    onCardFound(fullCard)
+                }
+            }
+        }
+    }
 }
 class DeckViewModelFactory(
     private val deckDao: DeckDao,

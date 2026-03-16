@@ -12,10 +12,10 @@ android {
 
     defaultConfig {
         applicationId = "com.ricca.futacollector"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -71,6 +71,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.30.1")
-
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
 }

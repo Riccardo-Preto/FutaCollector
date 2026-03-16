@@ -16,6 +16,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 
 /**
  * Card con count completo: contiene l'intera Card dal DB + quante copie abbiamo
@@ -26,15 +29,28 @@ data class CardWithCount(
 )
 
 class CollectionViewModel(
+    application: Application,
     private val cardDao: CardDao
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     // --- SCROLL STATE ---
     var gridState: LazyGridState? = null
     var listState: LazyListState? = null
 
+    private val prefs = getApplication<Application>()
+        .getSharedPreferences("futa_prefs", Context.MODE_PRIVATE)
+
     init {
-        refreshMarketPrices()
+        viewModelScope.launch(Dispatchers.IO) {
+            val lastUpdate = prefs.getLong("last_price_update", 0L)
+            val now = System.currentTimeMillis()
+            val twentyFourHours = 24 * 60 * 60 * 1000L
+
+            if (now - lastUpdate > twentyFourHours) {
+                refreshMarketPrices()
+                prefs.edit().putLong("last_price_update", now).apply()
+            }
+        }
     }
 
     // --- MOSTRA LISTA SET ---
@@ -188,6 +204,10 @@ class CollectionViewModel(
     val allSets: StateFlow<List<CardSetEntity>> = cardDao.getAllSets() // Assicurati di avere getAllSets nel DAO
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val setsWithCards: StateFlow<Set<String>> = cardDao.getSetIdsWithCards()
+        .map { it.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     fun getCardsFromSet(setId: String) {
         viewModelScope.launch {
             _searchQuery.value = "" // Puliamo la ricerca testuale
@@ -264,6 +284,14 @@ class CollectionViewModel(
     fun removeFromWishlist(cardId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             cardDao.removeFromWishlist(cardId)
+        }
+    }
+
+    fun forceRefreshMarketPrices() {
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshMarketPrices()
+            prefs.edit().putLong("last_price_update", System.currentTimeMillis()).apply()
+            _uiEvents.send("Prezzi aggiornati! ✅")
         }
     }
 }

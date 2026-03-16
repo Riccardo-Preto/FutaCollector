@@ -65,10 +65,9 @@ fun AppNavigation(
         factory = DeckViewModelFactory(deckDao, cardDao) // Li passiamo entrambi qui
     )
 
-    // ... (LaunchedEffect e Scaffold rimangono uguali) ...
 
     Scaffold(
-        // ... (snackbarHost uguale) ...
+
         bottomBar = {
             BottomBar(navController = navController, viewModel = collectionViewModel, deckViewModel = deckViewModel)
         }

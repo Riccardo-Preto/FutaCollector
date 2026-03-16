@@ -301,20 +301,13 @@ fun DeckCardGridItem(
                 text = { Text("Aggiungi alla collezione") },
                 leadingIcon = { Icon(Icons.Default.LibraryAdd, null, tint = Color(0xFF4CAF50)) },
                 onClick = {
-                    // Usiamo lo scope del ViewModel per fare l'operazione in background
-                    viewModel.viewModelScope.launch(Dispatchers.IO) {
-                        // 1. Recuperiamo la carta completa dal database usando l'ID
-                        val fullCard = viewModel.getCardById(item.cardId)
-
-                        if (fullCard != null) {
-                            // 2. La aggiungiamo alla collezione
-                            collectionViewModel.addCardToCollection(fullCard)
-
-                            // 3. Feedback (i Toast vanno chiamati sul thread principale)
-                            launch(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "${fullCard.name} aggiunta alla collezione! ✅", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                    viewModel.addCardToCollectionFromDeck(item.cardId) { card ->
+                        collectionViewModel.addCardToCollection(card)
+                        Toast.makeText(
+                            context,
+                            "${card.name} aggiunta alla collezione! ✅",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                     showMenu = false
                 }

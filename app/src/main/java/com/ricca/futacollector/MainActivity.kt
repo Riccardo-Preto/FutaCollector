@@ -5,47 +5,49 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import com.ricca.futacollector.data.AppDatabase
 import com.ricca.futacollector.ui.navigation.AppNavigation
 import com.ricca.futacollector.ui.theme.FutaCollectorTheme
 import com.ricca.futacollector.viewmodel.CollectionViewModel
 import com.ricca.futacollector.viewmodel.CollectionViewModelFactory
+import android.content.Context
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        val prefs = getSharedPreferences("futa_prefs", Context.MODE_PRIVATE)
+
         setContent {
+            var isDarkTheme by remember {
+                mutableStateOf(prefs.getBoolean("dark_theme", false))
+            }
 
-            // --- STATO GLOBALE TEMA ---
-            var isDarkTheme by remember { mutableStateOf(false) }
-
-            // --- APP THEME ---
             FutaCollectorTheme(darkTheme = isDarkTheme) {
-
-                // --- SYSTEM UI CONTROLLER ---
                 val systemUiController = rememberSystemUiController()
-                val useDarkIcons = !isDarkTheme
-
                 SideEffect {
                     systemUiController.setSystemBarsColor(
-                        color = Color.Transparent, // oppure MaterialTheme.colorScheme.surface
-                        darkIcons = useDarkIcons
+                        color = Color.Transparent,
+                        darkIcons = !isDarkTheme
                     )
                 }
 
-                // --- DAO & VIEWMODEL ---
-                val cardDao = com.ricca.futacollector.data.AppDatabase.getDatabase(applicationContext).cardDao()
+                val cardDao = AppDatabase.getDatabase(applicationContext).cardDao()
                 val collectionViewModel: CollectionViewModel =
                     androidx.lifecycle.viewmodel.compose.viewModel(
-                        factory = CollectionViewModelFactory(cardDao)
+                        factory = CollectionViewModelFactory(application, cardDao)
                     )
 
-                // --- NAVIGATION ---
                 AppNavigation(
                     darkTheme = isDarkTheme,
-                    onDarkThemeToggle = { isDarkTheme = it },
-                    collectionViewModel = collectionViewModel // passiamo il ViewModel
+                    onDarkThemeToggle = { newValue ->
+                        isDarkTheme = newValue
+                        prefs.edit().putBoolean("dark_theme", newValue).apply()
+                    },
+                    collectionViewModel = collectionViewModel
                 )
             }
         }
