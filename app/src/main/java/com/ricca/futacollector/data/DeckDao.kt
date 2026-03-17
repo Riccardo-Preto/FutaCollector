@@ -22,30 +22,27 @@ interface DeckDao {
 
     @Transaction
     @Query("""
-        SELECT 
-            dc.cardId, 
-            dc.quantity as countInDeck,
-            dc.isConsidering,
-            dc.orderedQuantity,
-            c.nome as cardName, 
-            c.card_image as cardImage, 
-            c.card_color as cardColor,
-            c.card_type as cardType,
-            c.card_cost as cardCost,
-            c.card_power as cardPower,    
-            c.counter_amount as cardCounter, 
-            c.market_price as marketPrice, 
-            COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0) as countInCollection
-        FROM deck_cards dc
-        JOIN cards c ON dc.cardId = c.id
-        JOIN decks d ON dc.deckId = d.id
-        WHERE dc.deckId = :deckId 
-        AND dc.cardId != d.leaderCardId
-    """)
+    SELECT 
+        dc.cardId, 
+        dc.quantity as countInDeck,
+        dc.isConsidering,
+        c.nome as cardName, 
+        c.card_image as cardImage, 
+        c.card_color as cardColor,
+        c.card_type as cardType,
+        c.card_cost as cardCost,
+        c.card_power as cardPower,    
+        c.counter_amount as cardCounter, 
+        c.market_price as marketPrice, 
+        COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0) as countInCollection,
+        COALESCE((SELECT oc.quantity FROM ordered_cards oc WHERE oc.card_id = dc.cardId), 0) as orderedQuantity
+    FROM deck_cards dc
+    JOIN cards c ON dc.cardId = c.id
+    JOIN decks d ON dc.deckId = d.id
+    WHERE dc.deckId = :deckId 
+    AND dc.cardId != d.leaderCardId
+""")
     fun getDeckDetails(deckId: Int): Flow<List<DeckWithCount>>
-
-    @Query("UPDATE deck_cards SET orderedQuantity = :newOrderedQty WHERE deckId = :deckId AND cardId = :cardId AND isConsidering = :isConsidering")
-    suspend fun updateOrderedQuantity(deckId: Int, cardId: String, isConsidering: Boolean, newOrderedQty: Int)
 
     @Query("UPDATE deck_cards SET quantity = :newQty WHERE deckId = :deckId AND cardId = :cardId AND isConsidering = :isConsidering")
     suspend fun updateCardQuantity(deckId: Int, cardId: String, isConsidering: Boolean, newQty: Int)
@@ -71,6 +68,75 @@ interface DeckDao {
         deleteAllDecks()
     }
 
+    @Query("""
+    SELECT dc.cardId, dc.quantity as countInDeck, dc.isConsidering,
+           c.nome as cardName, c.card_image as cardImage, c.card_color as cardColor,
+           c.card_type as cardType, c.card_cost as cardCost, c.card_power as cardPower,
+           c.counter_amount as cardCounter, c.market_price as marketPrice,
+           COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0) as countInCollection,
+           COALESCE((SELECT oc.quantity FROM ordered_cards oc WHERE oc.card_id = dc.cardId), 0) as orderedQuantity
+    FROM deck_cards dc
+    JOIN cards c ON dc.cardId = c.id
+    WHERE dc.deckId = :deckId AND dc.isConsidering = 0
+""")
+    suspend fun getDeckDetailsOneShot(deckId: Int): List<DeckWithCount>
+
+    data class MissingCard(
+        val deckId: Int,
+        val deckName: String,
+        val cardId: String,
+        val cardName: String?,
+        val cardImage: String?,
+        val needed: Int,
+        val owned: Int,
+        val missing: Int
+    )
+
+    @Query("""
+    SELECT 
+        d.id as deckId,
+        d.name as deckName,
+        dc.cardId,
+        c.nome as cardName,
+        c.card_image as cardImage,
+        dc.quantity as needed,
+        COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0) as owned,
+        MAX(0, dc.quantity 
+            - COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0)
+            - COALESCE((SELECT oc.quantity FROM ordered_cards oc WHERE oc.card_id = dc.cardId), 0)
+        ) as missing
+    FROM deck_cards dc
+    JOIN cards c ON dc.cardId = c.id
+    JOIN decks d ON dc.deckId = d.id
+    WHERE dc.isConsidering = 0
+    AND dc.cardId != d.leaderCardId
+    AND (
+        dc.quantity 
+        - COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0)
+        - COALESCE((SELECT oc.quantity FROM ordered_cards oc WHERE oc.card_id = dc.cardId), 0)
+    ) > 0
+    ORDER BY d.id, dc.cardId
+""")
+    fun getMissingCardsForAllDecks(): Flow<List<MissingCard>>
+
+    @Query("DELETE FROM deck_cards WHERE deckId = :deckId")
+    suspend fun deleteAllDeckCards(deckId: Int)
+
+    @Query("""
+    SELECT dc.cardId, dc.quantity as countInDeck, dc.isConsidering,
+           c.nome as cardName, c.card_image as cardImage, c.card_color as cardColor,
+           c.card_type as cardType, c.card_cost as cardCost, c.card_power as cardPower,
+           c.counter_amount as cardCounter, c.market_price as marketPrice,
+           COALESCE((SELECT uc.count FROM user_collection uc WHERE uc.card_id = dc.cardId), 0) as countInCollection,
+           COALESCE((SELECT oc.quantity FROM ordered_cards oc WHERE oc.card_id = dc.cardId), 0) as orderedQuantity
+    FROM deck_cards dc
+    JOIN cards c ON dc.cardId = c.id
+    WHERE dc.deckId = :deckId
+""")
+    suspend fun getAllDeckCardsOneShot(deckId: Int): List<DeckWithCount>
+
+    @Query("SELECT * FROM deck_cards")
+    fun getAllDeckCardsFlow(): Flow<List<DeckCard>>
 }
 
 data class DeckWithCount(
@@ -86,5 +152,5 @@ data class DeckWithCount(
     val marketPrice: Double?,
     val countInCollection: Int,
     val isConsidering: Boolean,
-    val orderedQuantity: Int
+    val orderedQuantity: Int  // ora viene da ordered_cards, non da deck_cards
 )

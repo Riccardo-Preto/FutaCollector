@@ -1,6 +1,8 @@
 package com.ricca.futacollector.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -10,12 +12,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,6 +56,50 @@ fun CollectionScreen(
 
     val wishlistGrouped by viewModel.wishlistCards.collectAsState() // <--- Prendi i dati dal ViewModel
     var showWishlist by remember { mutableStateOf(false) } // <--- Stato per il Dialog
+    var showOrders by remember { mutableStateOf(false) }
+
+    // Ordinamento
+    var sortBy by remember { mutableStateOf("id") } // "id", "price", "date"
+    var showSortSheet by remember { mutableStateOf(false) }
+
+    // Filtri
+    var filterSet by remember { mutableStateOf<String?>(null) }
+    var filterColor by remember { mutableStateOf<String?>(null) }
+    var filterType by remember { mutableStateOf<String?>(null) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+
+    // Lista set disponibili nella collezione
+    val availableSets = remember(collection) {
+        collection.mapNotNull { it.card.setId }.distinct().sorted()
+    }
+    val availableColors = remember(collection) {
+        collection.mapNotNull { it.card.color }
+            .flatMap { it.split("/") }
+            .map { it.trim() }
+            .distinct().sorted()
+    }
+    val availableTypes = remember(collection) {
+        collection.mapNotNull { it.card.type }.distinct().sorted()
+    }
+
+    // Collezione filtrata e ordinata
+    val filteredCollection = remember(collection, sortBy, filterSet, filterColor, filterType) {
+        collection
+            .filter { item ->
+                (filterSet == null || item.card.setId == filterSet) &&
+                        (filterColor == null || item.card.color?.contains(filterColor!!, ignoreCase = true) == true) &&
+                        (filterType == null || item.card.type?.equals(filterType, ignoreCase = true) == true)
+            }
+            .let { list ->
+                when (sortBy) {
+                    "price" -> list.sortedByDescending { it.card.marketPrice }
+                    "date" -> list.sortedByDescending { it.addedDate }
+                    else -> list.sortedBy { it.card.id }
+                }
+            }
+    }
+
+    val activeFilters = listOfNotNull(filterSet, filterColor, filterType).size
 
     Scaffold(
         floatingActionButton = {
@@ -65,37 +115,38 @@ fun CollectionScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(top = 0.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 20.dp),
+                    .padding(start = 20.dp, top = 20.dp, bottom = 4.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "La tua collezione",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Black
                 )
-
-                // Pulsante cuore più stiloso
-                IconButton(
-                    onClick = { showWishlist = true },
-                    modifier = Modifier
-                        .background(
-                            color = Color(0xFFEF5350).copy(alpha = 0.1f),
-                            shape = CircleShape
-                        )
-                        .size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = "Wishlist",
-                        tint = Color(0xFFEF5350),
-                        modifier = Modifier.size(20.dp)
-                    )
+                // Le due icone nel buco a destra
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(
+                        onClick = { showWishlist = true },
+                        modifier = Modifier
+                            .background(Color(0xFFEF5350).copy(alpha = 0.1f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(Icons.Default.Favorite, contentDescription = "Wishlist", tint = Color(0xFFEF5350), modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(
+                        onClick = { showOrders = true },
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(Icons.Default.LocalShipping, contentDescription = "Ordini", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
 
@@ -143,29 +194,76 @@ fun CollectionScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Carte totali", style = MaterialTheme.typography.labelMedium)
-                            Text("$totalCards", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("Carte totali", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                            Text("$totalCards", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Valore stimato", style = MaterialTheme.typography.labelMedium)
-                            Text(
-                                "€ ${String.format("%.2f", totalValueEuro)}",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Text("Valore stimato", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                            Text("€ ${String.format("%.2f", totalValueEuro)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                         }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Bottone Ordina
+                    OutlinedButton(
+                        onClick = { showSortSheet = true },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (sortBy != "id") MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline
+                        )
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Sort, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            when (sortBy) {
+                                "price" -> "Prezzo ↓"
+                                "date" -> "Data ↓"
+                                else -> "Ordina"
+                            },
+                            color = if (sortBy != "id") MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // Bottone Filtra
+                    OutlinedButton(
+                        onClick = { showFilterSheet = true },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (activeFilters > 0) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline
+                        )
+                    ) {
+                        Icon(Icons.Default.FilterList, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (activeFilters > 0) "Filtra ($activeFilters)" else "Filtra",
+                            color = if (activeFilters > 0) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
 
@@ -178,7 +276,7 @@ fun CollectionScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(collection, key = { it.card.id }) { item ->
+                    items(filteredCollection, key = { it.card.id }) { item ->
                         CardItemView(
                             card = item.card,
                             count = item.count,
@@ -190,12 +288,118 @@ fun CollectionScreen(
         }
     }
 
+    if (showSortSheet) {
+        ModalBottomSheet(onDismissRequest = { showSortSheet = false }) {
+            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                Text("Ordina per", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(16.dp))
+
+                listOf(
+                    "id" to "ID carta (default)",
+                    "price" to "Prezzo (decrescente)",
+                    "date" to "Data aggiunta (recente prima)"
+                ).forEach { (key, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                sortBy = key
+                                showSortSheet = false
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = sortBy == key, onClick = { sortBy = key; showSortSheet = false })
+                        Spacer(Modifier.width(12.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
+    if (showFilterSheet) {
+        ModalBottomSheet(onDismissRequest = { showFilterSheet = false }) {
+            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Filtra", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                    if (activeFilters > 0) {
+                        TextButton(onClick = {
+                            filterSet = null
+                            filterColor = null
+                            filterType = null
+                        }) { Text("Reset") }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Filtro Set
+                Text("Set", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    availableSets.forEach { set ->
+                        FilterChip(
+                            selected = filterSet == set,
+                            onClick = { filterSet = if (filterSet == set) null else set },
+                            label = { Text(set) }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Filtro Colore
+                Text("Colore", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    availableColors.forEach { color ->
+                        FilterChip(
+                            selected = filterColor == color,
+                            onClick = { filterColor = if (filterColor == color) null else color },
+                            label = { Text(color) }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Filtro Tipo
+                Text("Tipo", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    availableTypes.forEach { type ->
+                        FilterChip(
+                            selected = filterType == type,
+                            onClick = { filterType = if (filterType == type) null else type },
+                            label = { Text(type) }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(32.dp))
+            }
+        }
+    }
+
     // --- DIALOG WISHLIST ---
     if (showWishlist) {
         WishlistDialog(
             groupedItems = wishlistGrouped,
             onDismiss = { showWishlist = false },
             onRemove = { cardId -> viewModel.removeFromWishlist(cardId) }
+        )
+    }
+
+    if (showOrders) {
+        OrdersDialog(
+            viewModel = viewModel,
+            onDismiss = { showOrders = false }
         )
     }
 
@@ -215,7 +419,10 @@ fun CollectionScreen(
                         if (currentCount <= 1) selectedCard = null
                         viewModel.removeCardFromCollection(card)
                     },
-                    onDismiss = { selectedCard = null }
+                    onDismiss = { selectedCard = null },
+                    onAddToOrders = { quantity, note ->
+                        viewModel.addToOrders(card, quantity, note)
+                    }
                 )
             }
         }

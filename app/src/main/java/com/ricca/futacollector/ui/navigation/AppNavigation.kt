@@ -1,5 +1,6 @@
 package com.ricca.futacollector.ui.navigation
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,7 +42,7 @@ sealed class Screen(
 ) {
     object Home : Screen("home", "Home", Icons.Default.Home)
     object Search : Screen("search", "Cerca", Icons.Default.Search)
-    object Collection : Screen("collection", "Collezione", Icons.Default.Collections)
+    object Collection : Screen("collection", "Raccolta", Icons.Default.Collections)
     object Settings : Screen("settings", "Menu", Icons.Default.Settings)
     object DeckList : Screen("deck_list", "Mazzi", Icons.Default.Style)
 }
@@ -57,12 +58,20 @@ fun AppNavigation(
 
     // --- INIZIALIZZAZIONE DECK VIEWMODEL ---
     val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        collectionViewModel.uiEvents.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
     val db = remember { AppDatabase.getDatabase(context) }
     val deckDao = remember { db.deckDao() }
     val cardDao = remember { db.cardDao() } // Recuperiamo il cardDao
 
+    val orderedCardDao = remember { db.orderedCardDao() }
+
     val deckViewModel: DeckViewModel = viewModel(
-        factory = DeckViewModelFactory(deckDao, cardDao) // Li passiamo entrambi qui
+        factory = DeckViewModelFactory(deckDao, cardDao, orderedCardDao)
     )
 
 
@@ -78,7 +87,7 @@ fun AppNavigation(
             modifier = Modifier.padding(padding)
         ) {
             composable(Screen.Home.route) {
-                HomeScreen(navController, collectionViewModel)
+                HomeScreen(navController, collectionViewModel, deckViewModel)
             }
             composable(Screen.Search.route) {
                 SearchScreen(viewModel = collectionViewModel)
@@ -183,21 +192,31 @@ fun BottomBar(
             NavigationBarItem(
                 selected = isSelected,
                 onClick = {
-                    if (currentRoute == screen.route) {
-                        // --- RESET CENTRALIZZATO ---
-                        when (screen) {
-                            Screen.Search -> viewModel.resetSearchOnTabReselect()
-                            Screen.DeckList -> deckViewModel.resetScroll()
-                            Screen.Collection -> viewModel.resetCollectionScroll()
-                            else -> {}
+                    when {
+                        currentRoute == screen.route -> {
+                            // Già sulla tab — resetta scroll
+                            when (screen) {
+                                Screen.Search -> viewModel.resetSearchOnTabReselect()
+                                Screen.DeckList -> deckViewModel.resetScroll()
+                                Screen.Collection -> viewModel.resetCollectionScroll()
+                                else -> {}
+                            }
                         }
-                    } else if (isSelected) {
-                        navController.popBackStack(screen.route, inclusive = false)
-                    } else {
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
+                        isSelected -> {
+                            // Siamo in una sub-route della stessa tab — torna alla root
+                            navController.popBackStack(screen.route, inclusive = false)
+                        }
+                        else -> {
+                            if (screen == Screen.Home) {
+                                // Torna sempre alla home svuotando tutto lo stack
+                                navController.popBackStack(Screen.Home.route, inclusive = false)
+                            } else {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         }
                     }
                 },

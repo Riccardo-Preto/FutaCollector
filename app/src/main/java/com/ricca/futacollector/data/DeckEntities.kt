@@ -15,19 +15,16 @@ data class Deck(
 @Entity(
     tableName = "deck_cards",
     primaryKeys = ["deckId", "cardId", "isConsidering"],
-    foreignKeys = [
-        ForeignKey(
-            entity = Deck::class,
-            parentColumns = ["id"],
-            childColumns = ["deckId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
+    foreignKeys = [ForeignKey(
+        entity = Deck::class,
+        parentColumns = ["id"],
+        childColumns = ["deckId"],
+        onDelete = ForeignKey.CASCADE
+    )]
 )
 data class DeckCard(
     val deckId: Int,
     val cardId: String,
     val quantity: Int,
-    val isConsidering: Boolean = false,
-    val orderedQuantity: Int = 0
+    val isConsidering: Boolean = false
 )

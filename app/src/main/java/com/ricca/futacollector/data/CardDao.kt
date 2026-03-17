@@ -126,6 +126,16 @@ abstract class CardDao {
         return totalUpdated
     }
 
+    @Query("""
+    SELECT uc.card_id, uc.count, uc.added_date, 
+           c.nome, c.card_image, c.market_price, c.rarity, c.set_id
+    FROM user_collection uc
+    JOIN cards c ON uc.card_id = c.id
+    ORDER BY uc.added_date DESC
+    LIMIT 10
+""")
+    abstract fun getRecentlyAddedCards(): Flow<List<RecentCardItem>>
+
     @Query("SELECT * FROM wishlist ORDER BY addedDate DESC")
     abstract fun getWishlistItems(): Flow<List<WishlistEntity>>
 
@@ -135,3 +145,14 @@ abstract class CardDao {
     @Query("DELETE FROM wishlist WHERE cardId = :cardId")
     abstract suspend fun removeFromWishlist(cardId: String)
 }
+
+data class RecentCardItem(
+    @ColumnInfo(name = "card_id") val cardId: String,
+    @ColumnInfo(name = "count") val count: Int,
+    @ColumnInfo(name = "added_date") val addedDate: Long,
+    @ColumnInfo(name = "nome") val name: String?,
+    @ColumnInfo(name = "card_image") val image: String?,
+    @ColumnInfo(name = "market_price") val marketPrice: Double,
+    @ColumnInfo(name = "rarity") val rarity: String?,
+    @ColumnInfo(name = "set_id") val setId: String?
+)

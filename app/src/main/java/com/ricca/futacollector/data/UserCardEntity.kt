@@ -10,5 +10,7 @@ data class UserCardEntity(
     @ColumnInfo(name = "card_id")
     val cardId: String,
     @ColumnInfo(name = "count")
-    val count: Int = 1
+    val count: Int = 1,
+    @ColumnInfo(name = "added_date")
+    val addedDate: Long = System.currentTimeMillis()
 )

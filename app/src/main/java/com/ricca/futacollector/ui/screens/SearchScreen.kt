@@ -241,10 +241,12 @@ fun SearchScreen(
                             viewModel.addCardToCollection(card)
                             selectedCard = null
                         },
-                        onRemoveFromCollection = {
+                        onRemoveFromCollection = { selectedCard = null },
+                        onDismiss = { selectedCard = null },
+                        onAddToOrders = { quantity, note ->
+                            viewModel.addToOrders(card, quantity, note)
                             selectedCard = null
-                        },
-                        onDismiss = { selectedCard = null }
+                        }
                     )
                 }
             }

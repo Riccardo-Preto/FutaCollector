@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Style
@@ -22,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -29,6 +31,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
@@ -65,12 +68,12 @@ fun DeckListScreen(
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(top = 0.dp)) {
             Text(
                 text = "I tuoi Mazzi",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Black,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 4.dp)
             )
 
             if (decks.isEmpty()) {
@@ -156,6 +159,14 @@ fun DeckListScreen(
                                         menuExpandedDeckId = null
                                     }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Copia mazzo") },
+                                    leadingIcon = { Icon(Icons.Default.CopyAll, null) },
+                                    onClick = {
+                                        viewModel.copyDeck(item.deck.id)
+                                        menuExpandedDeckId = null
+                                    }
+                                )
                             }
                         }
                     }
@@ -229,30 +240,35 @@ fun DeckListScreen(
 fun DeckCardItem(
     deckWithLeader: DeckWithLeader,
     onClick: () -> Unit,
-    onLongClick: () -> Unit // Aggiungiamo questa callback
+    onLongClick: () -> Unit
 ) {
     val deck = deckWithLeader.deck
     val leader = deckWithLeader.leaderCard
+    val totalCards = deckWithLeader.totalCards
+    val ownedCards = deckWithLeader.ownedCards
 
     val cardImage = leader?.image ?: ""
     val imageModel = if (cardImage.startsWith("http")) cardImage
     else "file:///android_asset/immagini_ottimizzate/$cardImage"
 
+    val progressColor = when {
+        totalCards == 0 -> Color.Gray
+        ownedCards >= totalCards -> Color(0xFF4CAF50)
+        ownedCards >= totalCards * 0.75 -> Color(0xFFFFC107)
+        else -> Color(0xFFEF5350)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick // Triggera l'azione di cancellazione
-            ),
+            .height(150.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(6.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
 
-            // Background di fallback (il grigio che vedi ora)
-            Box(modifier = Modifier.fillMaxSize().background(Color.Gray))
+            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2A2A2A)))
 
             if (cardImage.isNotBlank()) {
                 AsyncImage(
@@ -262,39 +278,80 @@ fun DeckCardItem(
                     modifier = Modifier.fillMaxSize(),
                     onState = { state ->
                         if (state is AsyncImagePainter.State.Error) {
-                            android.util.Log.e("IMAGE_DECK_ERROR", "Errore caricamento: $imageModel")
+                            android.util.Log.e("IMAGE_DECK_ERROR", "Errore: $imageModel")
                         }
                     }
                 )
             }
 
-            // Gradiente per leggere il nome
+            // Gradiente più scuro così il testo si legge meglio
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)),
-                            startY = 150f
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.6f),
+                                Color.Black.copy(alpha = 0.92f)
+                            ),
+                            startY = 80f
                         )
                     )
             )
 
-            // Testo
             Column(
-                modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(12.dp)
             ) {
+                // Nome mazzo
                 Text(
                     text = deck.name,
                     fontWeight = FontWeight.Black,
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = leader?.name ?: "ID: ${deck.leaderCardId}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.7f)
-                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Barra progresso + contatore
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Barra progresso
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.2f))
+                    ) {
+                        if (totalCards > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(
+                                        (ownedCards.toFloat() / totalCards).coerceIn(0f, 1f)
+                                    )
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(progressColor)
+                            )
+                        }
+                    }
+
+                    // Contatore
+                    Text(
+                        text = "$ownedCards / $totalCards",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = progressColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }

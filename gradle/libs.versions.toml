@@ -17,6 +17,7 @@ uiText = "1.10.2"
 foundationLayout = "1.10.2"
 uiGraphics = "1.10.2"
 foundationVersion = "1.10.3"
+androidxFoundation = "1.10.5"
 
 
 [libraries]
@@ -44,6 +45,7 @@ androidx-compose-ui-text = { group = "androidx.compose.ui", name = "ui-text", ve
 androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "uiGraphics" }
 androidx-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundationVersion" }
+foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "androidxFoundation" }
 
 
 

@@ -3,7 +3,7 @@ package com.ricca.futacollector.viewmodel
 import android.util.Log
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider // <--- AGGIUNGI QUESTO
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.ricca.futacollector.data.Card
 import com.ricca.futacollector.data.CardDao
@@ -11,34 +11,52 @@ import com.ricca.futacollector.data.Deck
 import com.ricca.futacollector.data.DeckCard
 import com.ricca.futacollector.data.DeckDao
 import com.ricca.futacollector.data.DeckWithCount
+import com.ricca.futacollector.data.OrderedCardDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
 
 data class DeckWithLeader(
     val deck: Deck,
-    val leaderCard: Card?
+    val leaderCard: Card?,
+    val totalCards: Int = 0,
+    val ownedCards: Int = 0
 )
 
 class DeckViewModel(
     private val deckDao: DeckDao,
-    private val cardDao: CardDao
+    private val cardDao: CardDao,
+    private val orderedCardDao: OrderedCardDao
 ) : ViewModel() {
 
-    val allDecks: StateFlow<List<DeckWithLeader>> = deckDao.getAllDecks()
-        .map { decks ->
-            decks.map { deck ->
-                val leader = cardDao.getCardById(deck.leaderCardId)
-                DeckWithLeader(deck, leader)
-            }
+    val allDecks: StateFlow<List<DeckWithLeader>> = combine(
+        deckDao.getAllDecks(),
+        deckDao.getAllDeckCardsFlow(),
+        cardDao.getAllCollectionItems()
+    ) { decks, _, _ ->
+        // Ogni volta che cambia uno dei tre, ricalcola tutto
+        decks.map { deck ->
+            val leader = cardDao.getCardById(deck.leaderCardId)
+            val deckCards = deckDao.getDeckDetailsOneShot(deck.id)
+            val totalCards = deckCards.sumOf { it.countInDeck }
+            val ownedCards = deckCards.sumOf { minOf(it.countInDeck, it.countInCollection) }
+            DeckWithLeader(deck, leader, totalCards, ownedCards)
         }
+    }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // In cima alla classe DeckViewModel
+    private val _importResult = MutableStateFlow<String?>(null)
+    val importResult: StateFlow<String?> = _importResult.asStateFlow()
 
     fun createDeck(name: String, leaderId: String) {
         viewModelScope.launch {
@@ -66,28 +84,15 @@ class DeckViewModel(
             if (newQuantity <= 0) {
                 deckDao.deleteSpecificDeckCard(deckId, cardId, isConsidering)
             } else {
-                val current = deckDao.getSpecificDeckCard(deckId, cardId, isConsidering)
                 deckDao.insertDeckCard(
                     DeckCard(
                         deckId = deckId,
                         cardId = cardId,
                         quantity = newQuantity,
-                        isConsidering = isConsidering,
-                        orderedQuantity = current?.orderedQuantity ?: 0
+                        isConsidering = isConsidering
                     )
                 )
             }
-        }
-    }
-
-    // Aggiorna quante copie di quella riga sono state ordinate
-    fun updateOrderedQuantity(deckId: Int, cardId: String, isConsidering: Boolean, newOrderedQty: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val current = deckDao.getSpecificDeckCard(deckId, cardId, isConsidering)
-            val maxAllowed = current?.quantity ?: 0
-            // Evitiamo di ordinare più di quante ne servono nel mazzo
-            val finalQty = newOrderedQty.coerceIn(0, maxAllowed)
-            deckDao.updateOrderedQuantity(deckId, cardId, isConsidering, finalQty)
         }
     }
 
@@ -97,71 +102,65 @@ class DeckViewModel(
             val target = deckDao.getSpecificDeckCard(deckId, cardId, !fromConsidering)
 
             if (source != null && source.quantity > 0) {
-                val totalNeeded = source.quantity
-                val countOrdered = source.orderedQuantity
-                val countPossessed = availableHere
-
-                // 1. Quante grigie ci sono?
-                val countMissingPura = (totalNeeded - countPossessed - countOrdered).coerceAtLeast(0)
-
-                val moveOrder: Boolean
-                if (!fromConsidering) {
-                    // --- LOGICA DA MAIN A CONSIDERING (Priorità: Grigia > Gialla > Verde) ---
-                    moveOrder = when {
-                        countMissingPura > 0 -> false // Sposta la grigia (l'ordinata resta nel main)
-                        countOrdered > 0 && totalNeeded > countPossessed -> true // Sposta la gialla
-                        else -> false // Sposta la verde
-                    }
-                } else {
-                    // --- LOGICA DA CONSIDERING A MAIN (Priorità: Gialla > Verde > Grigia) ---
-                    moveOrder = when {
-                        countOrdered > 0 -> true // Sposta l'ordinata per prima!
-                        countPossessed > 0 -> false // Poi sposta la verde
-                        else -> false // Infine la grigia
-                    }
-                }
-
-                // --- ESECUZIONE SPOSTAMENTO ---
-                // 1. Aggiorna Sorgente
                 if (source.quantity > 1) {
-                    val newOrderedSource = if (moveOrder) source.orderedQuantity - 1 else source.orderedQuantity
-                    deckDao.insertDeckCard(source.copy(
-                        quantity = source.quantity - 1,
-                        orderedQuantity = newOrderedSource.coerceAtLeast(0)
-                    ))
+                    deckDao.insertDeckCard(source.copy(quantity = source.quantity - 1))
                 } else {
                     deckDao.deleteSpecificDeckCard(deckId, cardId, fromConsidering)
                 }
-
-                // 2. Aggiorna Destinazione
-                val newTargetQuantity = (target?.quantity ?: 0) + 1
-                val newOrderedTarget = (target?.orderedQuantity ?: 0) + (if (moveOrder) 1 else 0)
 
                 deckDao.insertDeckCard(
                     DeckCard(
                         deckId = deckId,
                         cardId = cardId,
-                        quantity = newTargetQuantity,
-                        isConsidering = !fromConsidering,
-                        orderedQuantity = newOrderedTarget
+                        quantity = (target?.quantity ?: 0) + 1,
+                        isConsidering = !fromConsidering
                     )
                 )
             }
         }
     }
+
     fun importDeckList(deckId: Int, rawList: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val lines = rawList.lines().map { it.trim() }.filter { it.isNotBlank() }
+
+            var imported = 0
+            val notFound = mutableListOf<String>()
+            val skipped = mutableListOf<String>()
+
             lines.forEach { line ->
                 val match = Regex("""(\d+)[xX\s-]*([A-Z0-9-]+)""").find(line)
-                if (match != null) {
-                    val quantity = match.groupValues[1].toInt()
-                    val cardId = match.groupValues[2].trim()
-                    val card = cardDao.getCardById(cardId)
-                    if (card != null) {
-                        deckDao.insertDeckCard(DeckCard(deckId, cardId, quantity))
-                    }
+                if (match == null) {
+                    skipped.add(line)
+                    return@forEach
                 }
+
+                val quantity = match.groupValues[1].toInt()
+                val cardId = match.groupValues[2].trim()
+                val card = cardDao.getCardById(cardId)
+
+                if (card != null) {
+                    deckDao.insertDeckCard(DeckCard(deckId, cardId, quantity))
+                    imported++
+                } else {
+                    notFound.add("$quantity x $cardId")
+                }
+            }
+
+            // Costruisci messaggio finale
+            val sb = StringBuilder()
+            sb.append("✅ $imported carte importate")
+
+            if (notFound.isNotEmpty()) {
+                sb.append("\n⚠️ Non trovate (${notFound.size}): ${notFound.joinToString(", ")}")
+            }
+            if (skipped.isNotEmpty()) {
+                sb.append("\n⏭️ Righe ignorate (${skipped.size})")
+            }
+
+            // Usa il channel degli eventi per mandare il messaggio
+            viewModelScope.launch(Dispatchers.Main) {
+                _importResult.value = sb.toString()
             }
         }
     }
@@ -191,40 +190,20 @@ class DeckViewModel(
             val existing = deckDao.getSpecificDeckCard(deckId, card.id, isConsidering)
             if (existing != null) {
                 if (existing.quantity < 4) {
-                    deckDao.updateCardQuantity(deckId, card.id, isConsidering, existing.quantity + 1)
+                    deckDao.insertDeckCard(existing.copy(quantity = existing.quantity + 1))
                 }
             } else {
-                deckDao.insertDeckCard(
-                    DeckCard(
-                        deckId = deckId,
-                        cardId = card.id,
-                        quantity = 1,
-                        isConsidering = isConsidering
-                    )
-                )
+                deckDao.insertDeckCard(DeckCard(deckId, card.id, 1, isConsidering))
             }
         }
     }
 
-    // NEL VIEWMODEL
     fun addMultipleCardsToDeck(deckId: Int, card: Card, qtyToAdd: Int, isConsidering: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
-            // DEBUG: Aggiungi questo log per vedere se l'ID è giusto
-            Log.d("DECK_ADD", "Aggiungo $qtyToAdd copie di ${card.id} al mazzo $deckId")
-
             val existing = deckDao.getSpecificDeckCard(deckId, card.id, isConsidering)
             val currentQty = existing?.quantity ?: 0
             val newQty = (currentQty + qtyToAdd).coerceAtMost(4)
-
-            deckDao.insertDeckCard(
-                DeckCard(
-                    deckId = deckId,
-                    cardId = card.id,
-                    quantity = newQty,
-                    isConsidering = isConsidering,
-                    orderedQuantity = existing?.orderedQuantity ?: 0
-                )
-            )
+            deckDao.insertDeckCard(DeckCard(deckId, card.id, newQty, isConsidering))
         }
     }
 
@@ -246,16 +225,76 @@ class DeckViewModel(
             }
         }
     }
+
+    fun addAllDeckCardsToCollection(deckId: Int, collectionViewModel: CollectionViewModel) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val deckItems = deckDao.getDeckDetailsOneShot(deckId)
+            var totalAdded = 0
+            deckItems.forEach { item ->
+                collectionViewModel.addCardSilently(item.cardId, item.countInDeck)
+                totalAdded += item.countInDeck
+            }
+            collectionViewModel.sendEvent("$totalAdded carte aggiunte alla collezione! ✅")
+        }
+    }
+
+    val missingCards: StateFlow<List<DeckDao.MissingCard>> = combine(
+        deckDao.getMissingCardsForAllDecks(),
+        cardDao.getAllCollectionItems()
+    ) { missing, _ -> missing }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun clearImportResult() {
+        _importResult.value = null
+    }
+
+    fun deleteDeckById(deckId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val deck = allDecks.value.find { it.deck.id == deckId }?.deck
+            if (deck != null) deckDao.deleteDeck(deck)
+        }
+    }
+
+    fun clearDeck(deckId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            deckDao.deleteAllDeckCards(deckId)
+        }
+    }
+
+    fun copyDeck(deckId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val originalDeck = allDecks.value.find { it.deck.id == deckId }?.deck ?: return@launch
+
+            val newDeckId = deckDao.insertDeck(
+                Deck(
+                    name = "Copia di ${originalDeck.name}",
+                    leaderCardId = originalDeck.leaderCardId
+                )
+            ).toInt()
+
+            val allCards = deckDao.getAllDeckCardsOneShot(deckId)
+            allCards.forEach { card ->
+                deckDao.insertDeckCard(
+                    DeckCard(
+                        deckId = newDeckId,
+                        cardId = card.cardId,
+                        quantity = card.countInDeck,
+                        isConsidering = card.isConsidering
+                    )
+                )
+            }
+        }
+    }
 }
 class DeckViewModelFactory(
     private val deckDao: DeckDao,
-    private val cardDao: CardDao // <--- Aggiungiamo questo
+    private val cardDao: CardDao,
+    private val orderedCardDao: OrderedCardDao  // aggiunto
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DeckViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            // Ora passiamo entrambi i DAO al ViewModel
-            return DeckViewModel(deckDao, cardDao) as T
+            return DeckViewModel(deckDao, cardDao, orderedCardDao) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

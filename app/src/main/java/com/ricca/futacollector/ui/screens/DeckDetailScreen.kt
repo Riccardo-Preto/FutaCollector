@@ -35,6 +35,7 @@ import com.ricca.futacollector.CardItemView
 import com.ricca.futacollector.data.AppConstants
 import com.ricca.futacollector.data.Card
 import com.ricca.futacollector.data.DeckWithCount
+import com.ricca.futacollector.ui.CardDetailMode
 import com.ricca.futacollector.viewmodel.CollectionViewModel
 import com.ricca.futacollector.viewmodel.DeckViewModel
 import kotlinx.coroutines.Dispatchers
@@ -64,10 +65,22 @@ fun DeckDetailScreen(
 
     var showImportDialog by remember { mutableStateOf(false) }
     var showManualAddSearch by remember { mutableStateOf(false) }
+    var showDeleteDeckDialog by remember { mutableStateOf(false) }
+    var showClearDeckDialog by remember { mutableStateOf(false) }
+    var selectedCard by remember { mutableStateOf<DeckWithCount?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        viewModel.importResult.collect { message ->
+            if (message != null) {
+                snackbarHostState.showSnackbar(message)
+                viewModel.clearImportResult()
+            }
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -81,8 +94,61 @@ fun DeckDetailScreen(
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } },
                 actions = {
-                    IconButton(onClick = { showManualAddSearch = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Aggiungi")
+                    var showMenu by remember { mutableStateOf(false) }
+
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Aggiungi carta") },
+                            leadingIcon = { Icon(Icons.Default.Add, null) },
+                            onClick = {
+                                showManualAddSearch = true
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Aggiungi tutto alla collezione") },
+                            leadingIcon = { Icon(Icons.Default.LibraryAdd, null) },
+                            onClick = {
+                                viewModel.addAllDeckCardsToCollection(deckId, collectionViewModel)
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Importa lista") },
+                            leadingIcon = { Icon(Icons.Default.ContentPaste, null) },
+                            onClick = {
+                                showImportDialog = true
+                                showMenu = false
+                            }
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        DropdownMenuItem(
+                            text = { Text("Svuota mazzo") },
+                            leadingIcon = { Icon(Icons.Default.CleaningServices, null) },
+                            onClick = {
+                                showClearDeckDialog = true
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Elimina mazzo", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = {
+                                Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error)
+                            },
+                            onClick = {
+                                showDeleteDeckDialog = true
+                                showMenu = false
+                            }
+                        )
                     }
                 }
             )
@@ -108,7 +174,11 @@ fun DeckDetailScreen(
                 }
 
                 items(mainDeck) { item ->
-                    DeckCardGridItem(item, deckId, viewModel, collectionViewModel, availableInCollection = item.countInCollection)
+                    DeckCardGridItem(
+                        item, deckId, viewModel, collectionViewModel,
+                        availableInCollection = item.countInCollection,
+                        onCardClick = { selectedCard = it }
+                    )
                 }
 
                 if (consideringDeck.isNotEmpty()) {
@@ -120,7 +190,11 @@ fun DeckDetailScreen(
                     items(consideringDeck) { item ->
                         val usedInMain = mainDeck.find { it.cardId == item.cardId }?.countInDeck ?: 0
                         val residualCollection = (item.countInCollection - usedInMain).coerceAtLeast(0)
-                        DeckCardGridItem(item, deckId, viewModel, collectionViewModel, availableInCollection = residualCollection)
+                        DeckCardGridItem(
+                            item, deckId, viewModel, collectionViewModel,
+                            availableInCollection = residualCollection,
+                            onCardClick = { selectedCard = it }  // aggiunto
+                        )
                     }
                 }
 
@@ -162,6 +236,78 @@ fun DeckDetailScreen(
                 leaderColors = leaderColors
             )
         }
+
+        if (showClearDeckDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDeckDialog = false },
+                title = { Text("Svuota mazzo?") },
+                text = { Text("Tutte le carte verranno rimosse dal mazzo. Il mazzo rimarrà nella lista.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.clearDeck(deckId)
+                        showClearDeckDialog = false
+                    }) {
+                        Text("Svuota", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearDeckDialog = false }) { Text("Annulla") }
+                }
+            )
+        }
+
+        if (showDeleteDeckDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDeckDialog = false },
+                title = { Text("Eliminare il mazzo?") },
+                text = { Text("Il mazzo \"$deckName\" verrà eliminato definitivamente.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteDeckById(deckId)
+                        showDeleteDeckDialog = false
+                        onBack()
+                    }) {
+                        Text("Elimina", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDeckDialog = false }) { Text("Annulla") }
+                }
+            )
+        }
+
+        selectedCard?.let { deckCard ->
+            var fullCard by remember { mutableStateOf<Card?>(null) }
+
+            LaunchedEffect(deckCard.cardId) {
+                fullCard = viewModel.getCardById(deckCard.cardId)
+            }
+
+            fullCard?.let { card ->
+                val currentCount = collectionViewModel.collectionCards.value
+                    .find { it.card.id == card.id }?.count ?: 0
+                Dialog(
+                    onDismissRequest = { selectedCard = null },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CardDetailScreen(
+                            card = card,
+                            mode = CardDetailMode.Collection(ownedCopies = currentCount),
+                            onAddToCollection = { collectionViewModel.addCardToCollection(card) },
+                            onRemoveFromCollection = {
+                                if (currentCount <= 1) selectedCard = null
+                                collectionViewModel.removeCardFromCollection(card)
+                            },
+                            onDismiss = { selectedCard = null },
+                            onAddToOrders = { quantity, note ->
+                                collectionViewModel.addToOrders(card, quantity, note)
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -172,7 +318,8 @@ fun DeckCardGridItem(
     deckId: Int,
     viewModel: DeckViewModel,
     collectionViewModel: CollectionViewModel,
-    availableInCollection : Int
+    availableInCollection : Int,
+    onCardClick: (DeckWithCount) -> Unit
 ) {
     val ordered = item.orderedQuantity
     val needed = item.countInDeck
@@ -190,7 +337,7 @@ fun DeckCardGridItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .combinedClickable(
-                    onClick = { /* Dettaglio */ },
+                    onClick = { onCardClick(item) },
                     onLongClick = { showMenu = true }
                 )
         ) {
@@ -261,18 +408,23 @@ fun DeckCardGridItem(
             DropdownMenuItem(
                 text = { Text("Segna 1 come Ordinata") },
                 leadingIcon = { Icon(Icons.Default.LocalShipping, null) },
-                enabled = ordered < (needed - availableInCollection),
+                enabled = item.orderedQuantity < (needed - availableInCollection),
                 onClick = {
-                    viewModel.updateOrderedQuantity(deckId, item.cardId, item.isConsidering, ordered + 1)
+                    viewModel.addCardToCollectionFromDeck(item.cardId) { card ->
+                        collectionViewModel.addToOrders(card, 1, "")
+                    }
                     showMenu = false
                 }
             )
-            if (ordered > 0) {
+
+            if (item.orderedQuantity > 0) {
                 DropdownMenuItem(
                     text = { Text("Rimuovi dalle Ordinate") },
                     leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, null) },
                     onClick = {
-                        viewModel.updateOrderedQuantity(deckId, item.cardId, item.isConsidering, ordered - 1)
+                        viewModel.addCardToCollectionFromDeck(item.cardId) { card ->
+                            collectionViewModel.removeOneFromOrders(card.id)
+                        }
                         showMenu = false
                     }
                 )
@@ -413,13 +565,6 @@ fun ManualAddCardDialog(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // Ascolta gli eventi del ViewModel dentro il Dialog
-    LaunchedEffect(Unit) {
-        collectionViewModel.uiEvents.collect { message ->
-            snackbarHostState.showSnackbar(message)
-        }
-    }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Scaffold(

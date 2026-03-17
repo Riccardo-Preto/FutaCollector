@@ -19,13 +19,18 @@ import kotlinx.coroutines.launch
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
+import com.ricca.futacollector.data.AppDatabase
+import com.ricca.futacollector.data.OrderedCardEntity
+import com.ricca.futacollector.data.OrderedCardWithDetails
+import com.ricca.futacollector.data.RecentCardItem
 
 /**
  * Card con count completo: contiene l'intera Card dal DB + quante copie abbiamo
  */
 data class CardWithCount(
     val card: Card,
-    val count: Int
+    val count: Int,
+    val addedDate: Long = 0L
 )
 
 class CollectionViewModel(
@@ -62,14 +67,16 @@ class CollectionViewModel(
         cardDao.getAllCollectionItems()
             .map { userItems ->
                 userItems.mapNotNull { userItem ->
-                    // Recuperiamo la Card completa dal DB usando cardId
                     val card = cardDao.getCardById(userItem.cardId)
                     if (card != null) {
-                        CardWithCount(card = card, count = userItem.count)
+                        CardWithCount(card = card, count = userItem.count, addedDate = userItem.addedDate)
                     } else null
                 }.sortedBy { it.card.id }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recentCards: StateFlow<List<RecentCardItem>> = cardDao.getRecentlyAddedCards()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- WISHLIST ---
     val wishlistCards: StateFlow<Map<String, List<WishlistItem>>> =
@@ -124,6 +131,22 @@ class CollectionViewModel(
             }
         }
     }
+
+    suspend fun addCardSilently(cardId: String, quantity: Int) {
+        val existing = cardDao.getUserCardById(cardId)
+        val currentCount = existing?.count ?: 0
+        cardDao.insertUserCard(
+            UserCardEntity(cardId = cardId, count = currentCount + quantity)
+        )
+    }
+
+    fun sendEvent(message: String) {
+        viewModelScope.launch {
+            _uiEvents.send(message)
+        }
+    }
+
+
     fun removeCardFromCollection(card: Card) {
         viewModelScope.launch {
             try {
@@ -210,8 +233,20 @@ class CollectionViewModel(
 
     fun getCardsFromSet(setId: String) {
         viewModelScope.launch {
-            _searchQuery.value = "" // Puliamo la ricerca testuale
-            val results = cardDao.getCardsBySet(setId)
+            _searchQuery.value = ""
+
+            val results = when (setId) {
+                "OP14" -> {
+                    val op14Cards = cardDao.getCardsBySet("OP14")
+                    val eb04Partial = cardDao.getCardsBySet("EB04").filter { card ->
+                        val color = card.color?.lowercase() ?: ""
+                        color.contains("green") || color.contains("blue") || color.contains("purple")
+                    }
+                    (op14Cards + eb04Partial).sortedBy { it.id }
+                }
+                else -> cardDao.getCardsBySet(setId)
+            }
+
             val enriched = results.map { card ->
                 val count = collectionCards.value.find { it.card.id == card.id }?.count ?: 0
                 CardWithCount(card, count)
@@ -293,6 +328,85 @@ class CollectionViewModel(
             prefs.edit().putLong("last_price_update", System.currentTimeMillis()).apply()
             _uiEvents.send("Prezzi aggiornati! ✅")
         }
+    }
+
+    // Inizializza il DAO (aggiungilo come parametro o recuperalo dal DB)
+    private val orderedCardDao = AppDatabase.getDatabase(application).orderedCardDao()
+
+    val orderedCards: StateFlow<List<OrderedCardWithDetails>> = orderedCardDao.getAllOrderedCards()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addToOrders(card: Card, quantity: Int = 1, note: String = "") {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = orderedCardDao.getOrderedCardByCardId(card.id)
+            if (existing != null) {
+                // Somma alla quantità esistente
+                orderedCardDao.insertOrderedCard(
+                    existing.copy(quantity = existing.quantity + quantity)
+                )
+            } else {
+                orderedCardDao.insertOrderedCard(
+                    OrderedCardEntity(cardId = card.id, quantity = quantity, note = note)
+                )
+            }
+            _uiEvents.send("Aggiunto agli ordini! 📦")
+        }
+    }
+
+    fun markAsArrived(item: OrderedCardWithDetails) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Aggiungi 1 sola copia alla collezione
+            val existing = cardDao.getUserCardById(item.cardId)
+            val currentCount = existing?.count ?: 0
+            cardDao.insertUserCard(
+                UserCardEntity(cardId = item.cardId, count = currentCount + 1)
+            )
+
+            // Decrementa gli ordini di 1
+            if (item.quantity <= 1) {
+                // Era l'ultima copia — rimuovi dall'ordine
+                orderedCardDao.deleteOrderedCard(item.id)
+            } else {
+                orderedCardDao.insertOrderedCard(
+                    OrderedCardEntity(
+                        id = item.id,
+                        cardId = item.cardId,
+                        quantity = item.quantity - 1,
+                        note = item.note,
+                        orderedDate = item.orderedDate
+                    )
+                )
+            }
+
+            _uiEvents.send("${item.name} arrivata! ✅")
+        }
+    }
+
+    fun removeFromOrders(id: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            orderedCardDao.deleteOrderedCard(id)
+        }
+    }
+    fun removeOneFromOrders(cardId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = orderedCardDao.getOrderedCardByCardId(cardId) ?: return@launch
+            if (existing.quantity <= 1) {
+                orderedCardDao.deleteOrderedCard(existing.id)
+            } else {
+                orderedCardDao.insertOrderedCard(existing.copy(quantity = existing.quantity - 1))
+            }
+        }
+    }
+
+    fun updateOrder(id: Int, quantity: Int, note: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = orderedCardDao.getOrderedCardById(id) ?: return@launch
+            orderedCardDao.insertOrderedCard(existing.copy(quantity = quantity, note = note))
+        }
+    }
+
+    suspend fun getCardById(cardId: String): Card? {
+        return cardDao.getCardById(cardId)
     }
 }
 

@@ -1,7 +1,6 @@
 package com.ricca.futacollector.ui.screens
 
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,12 +34,6 @@ fun SettingsScreen(
     var showDeleteCollectionDialog by remember { mutableStateOf(false) }
     var showDeleteDecksDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        viewModel.uiEvents.collect { message ->
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -49,9 +42,9 @@ fun SettingsScreen(
     ) {
         Text(
             text = "Impostazioni",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Black,
-            modifier = Modifier.padding(top = 24.dp, bottom = 32.dp)
+            modifier = Modifier.padding(start = 4.dp, top = 20.dp, bottom = 32.dp)
         )
 
         // ── SEZIONE 1: PERSONALIZZAZIONE ──────────────────────────
