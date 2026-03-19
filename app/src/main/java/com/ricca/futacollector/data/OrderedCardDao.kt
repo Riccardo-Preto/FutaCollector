@@ -26,6 +26,9 @@ interface OrderedCardDao {
 
     @Query("SELECT * FROM ordered_cards WHERE id = :id LIMIT 1")
     suspend fun getOrderedCardById(id: Int): OrderedCardEntity?
+
+    @Query("DELETE FROM ordered_cards")
+    suspend fun deleteAllOrders()
 }
 
 data class OrderedCardWithDetails(

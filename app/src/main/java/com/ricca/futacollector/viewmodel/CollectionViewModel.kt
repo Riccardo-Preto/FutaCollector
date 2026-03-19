@@ -408,5 +408,12 @@ class CollectionViewModel(
     suspend fun getCardById(cardId: String): Card? {
         return cardDao.getCardById(cardId)
     }
+
+    fun nukeOrders() {
+        viewModelScope.launch(Dispatchers.IO) {
+            orderedCardDao.deleteAllOrders()
+            _uiEvents.send("Ordini svuotati! 🗑️")
+        }
+    }
 }
 

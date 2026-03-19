@@ -2,6 +2,7 @@ package com.ricca.futacollector
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,12 +24,17 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import com.ricca.futacollector.data.AppConstants
 import com.ricca.futacollector.data.Card
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CardItemView(
     card: Card,
     count: Int,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // 1. Preparazione Colori e ID Estetica
@@ -66,9 +72,12 @@ fun CardItemView(
         modifier = modifier
             .padding(4.dp)
             .then(
-                // 2. Aggiungi il clickable SOLO se onClick non è null
-                if (onClick != null) Modifier.clickable { onClick() }
-                else Modifier
+                if (onClick != null || onLongClick != null) {
+                    Modifier.combinedClickable(
+                        onClick = { onClick?.invoke() },
+                        onLongClick = { onLongClick?.invoke() }
+                    )
+                } else Modifier
             ),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)

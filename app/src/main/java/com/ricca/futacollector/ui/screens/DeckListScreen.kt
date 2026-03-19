@@ -39,6 +39,10 @@ import coil.compose.AsyncImagePainter
 import com.ricca.futacollector.data.Deck
 import com.ricca.futacollector.viewmodel.DeckViewModel
 import com.ricca.futacollector.viewmodel.DeckWithLeader
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.PaddingValues
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -55,6 +59,8 @@ fun DeckListScreen(
     var deckToRename by remember { mutableStateOf<Deck?>(null) }
     var deckForImport by remember { mutableStateOf<Deck?>(null) }
     var menuExpandedDeckId by remember { mutableStateOf<Int?>(null) }
+
+    val context = LocalContext.current
 
     val gridState = viewModel.gridState
 
@@ -75,6 +81,40 @@ fun DeckListScreen(
                 fontWeight = FontWeight.Black,
                 modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 4.dp)
             )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Trova liste",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "TopDecks" to "https://onepiecetopdecks.com/deck-list/",
+                        "Limitless" to "https://onepiece.limitlesstcg.com/decks",
+                        "EGman" to "https://egmanevents.com/one-piece"
+                    ).forEach { (label, url) ->
+                        OutlinedButton(
+                            onClick = {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                )
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(label, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
 
             if (decks.isEmpty()) {
                 Box(

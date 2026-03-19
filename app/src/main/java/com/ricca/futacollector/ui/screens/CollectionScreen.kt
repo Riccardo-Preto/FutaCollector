@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,6 +62,8 @@ fun CollectionScreen(
     // Ordinamento
     var sortBy by remember { mutableStateOf("id") } // "id", "price", "date"
     var showSortSheet by remember { mutableStateOf(false) }
+
+    var longPressedCard by remember { mutableStateOf<Card?>(null) }
 
     // Filtri
     var filterSet by remember { mutableStateOf<String?>(null) }
@@ -277,11 +280,51 @@ fun CollectionScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(filteredCollection, key = { it.card.id }) { item ->
-                        CardItemView(
-                            card = item.card,
-                            count = item.count,
-                            onClick = { selectedCard = item.card }
-                        )
+                        Box {
+                            CardItemView(
+                                card = item.card,
+                                count = item.count,
+                                onClick = { selectedCard = item.card },
+                                onLongClick = { longPressedCard = item.card }
+                            )
+                            DropdownMenu(
+                                expanded = longPressedCard?.id == item.card.id,
+                                onDismissRequest = { longPressedCard = null }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Aggiungi una copia") },
+                                    leadingIcon = { Icon(Icons.Default.Add, null) },
+                                    onClick = {
+                                        viewModel.addCardToCollection(item.card)
+                                        longPressedCard = null
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Rimuovi una copia") },
+                                    leadingIcon = { Icon(Icons.Default.Remove, null) },
+                                    onClick = {
+                                        viewModel.removeCardFromCollection(item.card)
+                                        longPressedCard = null
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Aggiungi agli ordini") },
+                                    leadingIcon = { Icon(Icons.Default.LocalShipping, null) },
+                                    onClick = {
+                                        viewModel.addToOrders(item.card, 1, "")
+                                        longPressedCard = null
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Aggiungi alla wishlist") },
+                                    leadingIcon = { Icon(Icons.Default.Favorite, null) },
+                                    onClick = {
+                                        viewModel.addToWishlist(item.card)
+                                        longPressedCard = null
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }

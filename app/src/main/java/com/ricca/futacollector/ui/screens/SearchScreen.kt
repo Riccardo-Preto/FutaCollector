@@ -15,8 +15,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,6 +57,8 @@ fun SearchScreen(
     val showSetList by viewModel.showSetList.collectAsState()
 
     var selectedCard by remember { mutableStateOf<Card?>(null) }
+
+    var longPressedCard by remember { mutableStateOf<Card?>(null) }
 
     // Lazy states salvati nel ViewModel
     val gridState =
@@ -204,11 +209,43 @@ fun SearchScreen(
                 ) {
                     // FIX: card qui è di tipo CardWithCount
                     items(cards, key = { it.card.id }) { cardWithCount ->
-                        CardItemView(
-                            card = cardWithCount.card, // Passiamo l'oggetto Card interno
-                            count = cardWithCount.count, // Ora possiamo passare il count reale!
-                            onClick = { selectedCard = cardWithCount.card } // Assegniamo la Card
-                        )
+                        Box {
+                            CardItemView(
+                                card = cardWithCount.card,
+                                count = cardWithCount.count,
+                                onClick = { selectedCard = cardWithCount.card },
+                                onLongClick = { longPressedCard = cardWithCount.card }
+                            )
+                            DropdownMenu(
+                                expanded = longPressedCard?.id == cardWithCount.card.id,
+                                onDismissRequest = { longPressedCard = null }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Aggiungi alla collezione") },
+                                    leadingIcon = { Icon(Icons.Default.Add, null) },
+                                    onClick = {
+                                        viewModel.addCardToCollection(cardWithCount.card)
+                                        longPressedCard = null
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Aggiungi agli ordini") },
+                                    leadingIcon = { Icon(Icons.Default.LocalShipping, null) },
+                                    onClick = {
+                                        viewModel.addToOrders(cardWithCount.card, 1, "")
+                                        longPressedCard = null
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Aggiungi alla wishlist") },
+                                    leadingIcon = { Icon(Icons.Default.Favorite, null) },
+                                    onClick = {
+                                        viewModel.addToWishlist(cardWithCount.card)
+                                        longPressedCard = null
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
 

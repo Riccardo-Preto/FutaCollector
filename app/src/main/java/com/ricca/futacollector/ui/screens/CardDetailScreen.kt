@@ -1,5 +1,6 @@
 package com.ricca.futacollector.ui.screens
 
+import android.content.Intent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,7 +46,9 @@ import coil.compose.rememberAsyncImagePainter
 import com.ricca.futacollector.data.AppConstants
 import com.ricca.futacollector.data.Card
 import com.ricca.futacollector.ui.CardDetailMode
-import com.ricca.futacollector.getCardColorsList // Assicurati che il file components.kt sia salvato
+import com.ricca.futacollector.getCardColorsList
+import android.net.Uri
+import androidx.compose.material.icons.filled.OpenInBrowser
 
 @Composable
 fun CardDetailScreen(
@@ -226,6 +230,20 @@ fun CardDetailScreen(
                     // PriceTag ora include la conversione Euro
                     PriceTag(label = "Market Price", price = card.marketPrice)
                     Spacer(modifier = Modifier.height(24.dp))
+
+                    val context = LocalContext.current
+                    OutlinedButton(
+                        onClick = {
+                            val url = "https://www.cardmarket.com/it/OnePiece/Products/Search?searchString=${card.id.split("_").first()}"
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.OpenInBrowser, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Cerca su Cardmarket")
+                    }
                 }
 
                 ActionButtonsSection(

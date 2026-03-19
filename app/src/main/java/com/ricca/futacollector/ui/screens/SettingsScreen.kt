@@ -33,6 +33,7 @@ fun SettingsScreen(
 
     var showDeleteCollectionDialog by remember { mutableStateOf(false) }
     var showDeleteDecksDialog by remember { mutableStateOf(false) }
+    var showDeleteOrdersDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -148,6 +149,22 @@ fun SettingsScreen(
             Text("Elimina Tutti i Mazzi", fontWeight = FontWeight.Bold)
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = { showDeleteOrdersDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.error
+            )
+        ) {
+            Icon(Icons.Default.Delete, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Svuota Ordini", fontWeight = FontWeight.Bold)
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
     }
 
@@ -186,6 +203,25 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDecksDialog = false }) { Text("Annulla") }
+            }
+        )
+    }
+
+    if (showDeleteOrdersDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteOrdersDialog = false },
+            title = { Text("Svuota ordini?") },
+            text = { Text("Tutti gli ordini in corso verranno eliminati.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.nukeOrders()
+                    showDeleteOrdersDialog = false
+                }) {
+                    Text("SÌ, SVUOTA", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteOrdersDialog = false }) { Text("Annulla") }
             }
         )
     }
