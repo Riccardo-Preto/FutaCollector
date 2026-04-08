@@ -415,5 +415,16 @@ class CollectionViewModel(
             _uiEvents.send("Ordini svuotati! 🗑️")
         }
     }
+
+    fun cleanCardNameForExport(name: String?): String {
+        if (name == null) return ""
+        // Prende tutto prima della prima parentesi e rimuove spazi extra
+        return name.substringBefore("(").trim()
+    }
+
+    fun cleanCardIdForExport(id: String): String {
+        // Rimuove suffissi tipo _v2, _v3, _r1, ecc.
+        return id.substringBefore("_")
+    }
 }
 

@@ -48,6 +48,7 @@ import com.ricca.futacollector.data.Card
 import com.ricca.futacollector.ui.CardDetailMode
 import com.ricca.futacollector.getCardColorsList
 import android.net.Uri
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.OpenInBrowser
 
 @Composable
@@ -59,7 +60,8 @@ fun CardDetailScreen(
     onDismiss: () -> Unit,
     onAddToOrders: (quantity: Int, note: String) -> Unit = { _, _ -> },
     onConfirmArrival: (() -> Unit)? = null,
-    onRemoveFromOrders: (() -> Unit)? = null
+    onRemoveFromOrders: (() -> Unit)? = null,
+    onAddToWishlist: (() -> Unit)? = null
 ) {
     val cardName = card.name ?: "Nome Sconosciuto"
     val cardImage = card.image ?: ""
@@ -253,7 +255,8 @@ fun CardDetailScreen(
                     onAdd = onAddToCollection,
                     onAddToOrders = { quantity, note -> onAddToOrders(quantity, note) },
                     onConfirmArrival = onConfirmArrival,
-                    onRemoveFromOrders = onRemoveFromOrders
+                    onRemoveFromOrders = onRemoveFromOrders,
+                    onAddToWishlist = onAddToWishlist
                 )
             }
 
@@ -333,7 +336,8 @@ fun ActionButtonsSection(
     onAdd: () -> Unit,
     onAddToOrders: (quantity: Int, note: String) -> Unit,
     onConfirmArrival: (() -> Unit)? = null,
-    onRemoveFromOrders: (() -> Unit)? = null
+    onRemoveFromOrders: (() -> Unit)? = null,
+    onAddToWishlist: (() -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
     var showOrderDialog by remember { mutableStateOf(false) }
@@ -450,6 +454,22 @@ fun ActionButtonsSection(
                     Icon(Icons.Default.LocalShipping, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Aggiungi agli ordini")
+                }
+                if (onAddToWishlist != null) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { onAddToWishlist() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFEF5350)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFFEF5350).copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.Default.FavoriteBorder, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Aggiungi alla wishlist")
+                    }
                 }
             }
         }

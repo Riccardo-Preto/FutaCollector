@@ -283,6 +283,9 @@ fun SearchScreen(
                         onAddToOrders = { quantity, note ->
                             viewModel.addToOrders(card, quantity, note)
                             selectedCard = null
+                        },
+                        onAddToWishlist = {
+                            viewModel.addToWishlist(card)
                         }
                     )
                 }

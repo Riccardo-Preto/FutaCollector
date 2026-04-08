@@ -144,7 +144,7 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .size(80.dp, 112.dp)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(4.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                             ) {
                                 if (imageModel != null) {
@@ -275,6 +275,9 @@ fun HomeScreen(
                         onAddToOrders = { quantity, note ->
                             viewModel.addToOrders(card, quantity, note)
                             selectedMissingCardId = null
+                        },
+                        onAddToWishlist = {
+                            viewModel.addToWishlist(card)
                         }
                     )
                 }
@@ -406,7 +409,7 @@ fun MissingCardChip(card: MissingCard, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(80.dp, 112.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(4.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             if (imageModel != null) {
@@ -420,7 +423,7 @@ fun MissingCardChip(card: MissingCard, onClick: () -> Unit) {
             Surface(
                 modifier = Modifier.align(Alignment.BottomEnd),
                 color = MaterialTheme.colorScheme.error,
-                shape = RoundedCornerShape(topStart = 8.dp)
+                shape = RoundedCornerShape(topStart = 4.dp)
             ) {
                 Text(
                     text = "x${card.missing}",
@@ -463,7 +466,7 @@ fun RecentCardRow(item: RecentCardItem, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(48.dp, 68.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(4.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             if (imageModel != null) {

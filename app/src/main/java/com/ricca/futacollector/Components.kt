@@ -79,7 +79,7 @@ fun CardItemView(
                     )
                 } else Modifier
             ),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(6.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -166,7 +166,7 @@ fun CardItemView(
                 Surface(
                     modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
                     color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(6.dp),
+                    shape = RoundedCornerShape(4.dp),
                     tonalElevation = 4.dp
                 ) {
                     Text(

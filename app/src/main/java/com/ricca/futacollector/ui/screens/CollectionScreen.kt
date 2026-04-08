@@ -1,7 +1,12 @@
 package com.ricca.futacollector.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,16 +27,20 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -485,6 +494,9 @@ fun WishlistDialog(
     onDismiss: () -> Unit,
     onRemove: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val allItems = groupedItems.values.flatten()
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -492,37 +504,69 @@ fun WishlistDialog(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("La mia Wishlist", fontWeight = FontWeight.Bold) },
+                    title = { Text("Wishlist", fontWeight = FontWeight.Bold) },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) }
+                    },
+                    actions = {
+                        if (allItems.isNotEmpty()) {
+                            IconButton(onClick = {
+                                // Export formato Cardmarket: "1x Perona OP12-034"
+                                val exportText = allItems.joinToString("\n") { item ->
+                                    val cleanName = item.card.name
+                                        ?.substringBefore("(")
+                                        ?.replace(Regex("-\\s*[A-Z]{2,5}\\d{2}-\\d{3,4}.*"), "")  // rimuove " - PRB02-002" e simili
+                                        ?.trim()
+                                        ?: ""
+                                    val cleanId = item.card.id.substringBefore("_")
+                                    "${item.quantity}x $cleanName $cleanId"
+                                }
+                                val sendIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, exportText)
+                                    type = "text/plain"
+                                }
+                                context.startActivity(
+                                    Intent.createChooser(sendIntent, "Esporta Wishlist")
+                                )
+                            }) {
+                                Icon(Icons.Default.Share, contentDescription = "Esporta")
+                            }
+                        }
                     }
                 )
             }
         ) { padding ->
-            if (groupedItems.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("La tua lista dei desideri è vuota 🌟", color = Color.Gray)
+            if (allItems.isEmpty()) {
+                Box(
+                    Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.FavoriteBorder,
+                            null,
+                            modifier = Modifier.size(80.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "La tua wishlist è vuota",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             } else {
-                LazyColumn(
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
                     modifier = Modifier.fillMaxSize().padding(padding),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    groupedItems.forEach { (reason, items) ->
-                        item {
-                            Text(
-                                text = reason.uppercase(),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Black
-                            )
-                            HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
-                        }
-
-                        items(items) { item ->
-                            WishlistRow(item, onRemove)
-                        }
+                    items(allItems, key = { it.card.id }) { item ->
+                        WishlistGridItem(item = item, onRemove = onRemove)
                     }
                 }
             }
@@ -530,32 +574,83 @@ fun WishlistDialog(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun WishlistRow(item: WishlistItem, onRemove: (String) -> Unit) {
-    val priceEur = (item.card.marketPrice * AppConstants.CONVERSION_RATE) * item.quantity
+fun WishlistGridItem(item: WishlistItem, onRemove: (String) -> Unit) {
+    var showMenu by remember { mutableStateOf(false) }
+    val priceEur = item.card.marketPrice * AppConstants.CONVERSION_RATE
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Box(
+        modifier = Modifier.combinedClickable(
+            onClick = { showMenu = true },
+            onLongClick = { showMenu = true }
+        )
     ) {
-        // Mini immagine
-        Card(shape = RoundedCornerShape(4.dp), modifier = Modifier.size(50.dp, 70.dp)) {
-            AsyncImage(
-                model = "file:///android_asset/immagini_ottimizzate/${item.card.image}",
-                contentDescription = null,
-                contentScale = ContentScale.Crop
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .aspectRatio(0.72f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(
+                        2.dp,
+                        Color(0xFFEF5350).copy(alpha = 0.6f),
+                        RoundedCornerShape(8.dp)
+                    )
+            ) {
+                val cardImage = item.card.image ?: ""
+                val imageModel = if (cardImage.startsWith("http")) cardImage
+                else "file:///android_asset/immagini_ottimizzate/$cardImage"
+
+                AsyncImage(
+                    model = imageModel,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+
+                // Prezzo in basso a sinistra
+                Surface(
+                    Modifier.align(Alignment.BottomStart),
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(topEnd = 8.dp)
+                ) {
+                    Text(
+                        text = "€${"%.2f".format(priceEur)}",
+                        color = Color(0xFFEF5350),
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Quantità in basso a destra
+                if (item.quantity > 1) {
+                    Surface(
+                        Modifier.align(Alignment.BottomEnd),
+                        color = Color.Black.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(topStart = 8.dp)
+                    ) {
+                        Text(
+                            "x${item.quantity}",
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = { Text("Rimuovi dalla wishlist", color = Color.Red) },
+                leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) },
+                onClick = {
+                    onRemove(item.card.id)
+                    showMenu = false
+                }
             )
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(Modifier.weight(1f)) {
-            Text(item.card.name ?: "Unknown", fontWeight = FontWeight.Bold, maxLines = 1)
-            Text("x${item.quantity} - €${"%.2f".format(priceEur)}", style = MaterialTheme.typography.bodySmall)
-        }
-
-        IconButton(onClick = { onRemove(item.card.id) }) {
-            Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Gray)
         }
     }
 }

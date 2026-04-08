@@ -40,6 +40,8 @@ import com.ricca.futacollector.viewmodel.CollectionViewModel
 import com.ricca.futacollector.viewmodel.DeckViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.content.Intent
+import androidx.core.content.ContextCompat.startActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,6 +127,36 @@ fun DeckDetailScreen(
                             leadingIcon = { Icon(Icons.Default.ContentPaste, null) },
                             onClick = {
                                 showImportDialog = true
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Esporta mazzo") },
+                            leadingIcon = { Icon(Icons.Default.Share, null) },
+                            onClick = {
+                                viewModel.exportDeckList(deckId) { exportText ->
+                                    val sendIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, exportText)
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Esporta mazzo"))
+                                }
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Esporta per Cardmarket") },
+                            leadingIcon = { Icon(Icons.Default.Share, null) },
+                            onClick = {
+                                viewModel.exportDeckListCardmarket(deckId) { exportText ->
+                                    val sendIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, exportText)
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Esporta per Cardmarket"))
+                                }
                                 showMenu = false
                             }
                         )

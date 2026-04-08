@@ -285,6 +285,32 @@ class DeckViewModel(
             }
         }
     }
+
+    fun exportDeckList(deckId: Int, onResult: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cards = deckDao.getDeckDetailsOneShot(deckId)
+            val mainCards = cards.filter { !it.isConsidering }
+            val exportString = mainCards.joinToString("\n") { "${it.countInDeck}x${it.cardId}" }
+            launch(Dispatchers.Main) { onResult(exportString) }
+        }
+    }
+
+    fun exportDeckListCardmarket(deckId: Int, onResult: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cards = deckDao.getDeckDetailsOneShot(deckId)
+            val mainCards = cards.filter { !it.isConsidering }
+            val exportString = mainCards.joinToString("\n") { item ->
+                val cleanName = item.cardName
+                    ?.substringBefore("(")
+                    ?.replace(Regex("-\\s*[A-Z]{2,5}\\d{2}-\\d{3,4}.*"), "")
+                    ?.trim()
+                    ?: ""
+                val cleanId = item.cardId.substringBefore("_")
+                "${item.countInDeck}x $cleanName $cleanId"
+            }
+            launch(Dispatchers.Main) { onResult(exportString) }
+        }
+    }
 }
 class DeckViewModelFactory(
     private val deckDao: DeckDao,
