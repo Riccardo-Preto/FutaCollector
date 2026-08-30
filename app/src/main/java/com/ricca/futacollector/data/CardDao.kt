@@ -2,6 +2,9 @@ package com.ricca.futacollector.data
 
 import androidx.room.*
 import com.ricca.futacollector.data.api.ApiCard // Assicurati che l'import sia corretto per il tuo modello API
+import com.ricca.futacollector.data.api.SnapshotCard
+import com.ricca.futacollector.data.api.SnapshotResponse
+import com.ricca.futacollector.data.api.SnapshotSet
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -144,6 +147,135 @@ abstract class CardDao {
 
     @Query("DELETE FROM wishlist WHERE cardId = :cardId")
     abstract suspend fun removeFromWishlist(cardId: String)
+
+
+    // ======================================================================
+    // --- SYNC DA snapshot.json (sostituisce le migration scritte a mano) ---
+    // ======================================================================
+
+    // Le carte le sovrascriviamo del tutto: vengono interamente da
+    // optcgapi.com, non hai mai modificato questi campi a mano.
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertCards(cards: List<Card>)
+
+    @Query("DELETE FROM cards")
+    abstract suspend fun deleteAllCards()
+
+    @Query("DELETE FROM sets")
+    abstract suspend fun deleteAllSets()
+
+    // Aggiorna SOLO ordine e cover di un set che esiste già. Se il set
+    // non c'è (per esempio è stato rinominato), non fa nulla — non crea
+    // righe nuove, quindi è sicura da chiamare anche con id sbagliati.
+    @Query("UPDATE sets SET ordine_utente = :order, set_cover_image = :cover WHERE id = :id")
+    abstract suspend fun restoreSetOrderAndCover(id: String, order: Int, cover: String?)
+
+    // Per i set invece NON possiamo sovrascrivere tutto: "ordine_utente"
+    // e "set_cover_image" sono cose che magari hai sistemato tu a mano
+    // nell'app, e lo snapshot non le conosce. Con questa query, se il set
+    // esiste già aggiorniamo solo nome/api_id e lasciamo intatto il resto;
+    // se è un set nuovo, gli diamo l'ordine "fallbackOrder" passato da
+    // fuori (che rispecchia l'ordine in cui l'API restituisce i set,
+    // quindi tendenzialmente l'ordine di uscita) invece di un numero
+    // fisso uguale per tutti.
+    @Query("""
+        INSERT INTO sets (id, api_id, nome, ordine_utente, set_cover_image)
+        VALUES (
+            :id,
+            :apiId,
+            :nome,
+            COALESCE((SELECT ordine_utente FROM sets WHERE id = :id), :fallbackOrder),
+            (SELECT set_cover_image FROM sets WHERE id = :id)
+        )
+        ON CONFLICT(id) DO UPDATE SET
+            api_id = excluded.api_id,
+            nome = excluded.nome
+    """)
+    abstract suspend fun upsertSet(id: String, apiId: String?, nome: String?, fallbackOrder: Int)
+
+    // Cancella i set che non compaiono più nello snapshot E che, dopo la
+    // sync, nessuna carta usa più come set_id. La doppia condizione (non
+    // nello snapshot + zero carte collegate) evita di cancellare per
+    // sbaglio un set ancora in uso.
+    @Query("""
+        DELETE FROM sets
+        WHERE id NOT IN (:validSetIds)
+        AND id NOT IN (SELECT DISTINCT set_id FROM cards WHERE set_id IS NOT NULL)
+    """)
+    abstract suspend fun deleteOrphanSets(validSetIds: List<String>)
+
+    /**
+     * Punto d'ingresso unico per la sync: prende la risposta già scaricata
+     * da SnapshotApiService e la scrive nel database, nell'ordine giusto
+     * (prima i set, poi le carte, perché le carte hanno una foreign key
+     * verso i set). Tutto dentro una singola transazione: o va tutto a
+     * buon fine, o non cambia nulla — niente stati a metà.
+     */
+    @Transaction
+    open suspend fun syncFromSnapshot(snapshot: SnapshotResponse) {
+        // 1. Set, uno per uno con l'upsert che preserva ordine/cover.
+        // fallbackOrder parte da 10000 e cresce nell'ordine restituito
+        // dall'API: così i set nuovi restano ordinati tra loro (di solito
+        // l'API li restituisce in ordine di uscita) e vengono comunque
+        // dopo tutti quelli che avevi già ordinato tu a mano.
+        snapshot.sets.forEachIndexed { index, s: SnapshotSet ->
+            upsertSet(id = s.id, apiId = s.api_id, nome = s.nome, fallbackOrder = 10000 + index)
+        }
+
+        // 2. Carte, tutte insieme: mappiamo SnapshotCard -> Card (stessa
+        // forma, cambia solo il tipo) e inseriamo in blocco.
+        val cardEntities = snapshot.cards.map { sc: SnapshotCard ->
+            Card(
+                id = sc.id,
+                name = sc.nome,
+                marketPrice = sc.market_price,
+                image = sc.card_image,
+                rarity = sc.rarity,
+                color = sc.card_color,
+                type = sc.card_type,
+                cost = sc.card_cost,
+                power = sc.card_power,
+                counter = sc.counter_amount,
+                attribute = sc.attribute,
+                apiImageId = sc.api_image_id,
+                effect = sc.card_text,
+                setId = sc.set_id,
+                subTypes = sc.sub_types
+            )
+        }
+        insertCards(cardEntities)
+
+        // 3. Pulizia: rimuoviamo i set che non esistono più nello
+        // snapshot e che ora non hanno più nessuna carta collegata
+        // (i "relitti" tipo OP14/OP15/EB04 da soli).
+        deleteOrphanSets(snapshot.sets.map { it.id })
+    }
+
+    /**
+     * Da usare UNA VOLTA per ripartire puliti: cancella tutto il catalogo
+     * carte/set esistente (quello del vecchio schema) e lo ricostruisce
+     * da zero seguendo solo la convenzione di id/ordine dell'API. Non
+     * tocca collezione, mazzi, ordini o wishlist — solo cards e sets.
+     */
+    @Transaction
+    open suspend fun resetAndSyncFromSnapshot(snapshot: SnapshotResponse) {
+        deleteAllCards()
+        deleteAllSets()
+        syncFromSnapshot(snapshot)
+    }
+
+    /**
+     * Da usare UNA VOLTA per ripristinare ordine e copertine perse col
+     * reset del catalogo. "entries" è la tripletta (id, ordine, cover)
+     * presa dal tuo vecchio database. Aggiorna solo i set che esistono
+     * ancora con quell'id: non ricrea set cancellati né ne inventa.
+     */
+    @Transaction
+    open suspend fun restoreOriginalSetOrder(entries: List<Triple<String, Int, String?>>) {
+        entries.forEach { (id, order, cover) ->
+            restoreSetOrderAndCover(id, order, cover)
+        }
+    }
 }
 
 data class RecentCardItem(

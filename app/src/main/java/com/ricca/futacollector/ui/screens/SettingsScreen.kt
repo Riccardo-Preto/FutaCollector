@@ -114,6 +114,30 @@ fun SettingsScreen(
             Text("Condividi Valore Collezione")
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { viewModel.forceSyncCardDatabase() },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Sync, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Aggiorna catalogo carte")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { viewModel.restoreOriginalSetOrder() },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Sync, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Ripristina ordine set (una tantum)")
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         // ── SEZIONE 3: CANCELLA DATI ──────────────────────────────

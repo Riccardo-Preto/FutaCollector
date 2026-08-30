@@ -10,6 +10,7 @@ import com.ricca.futacollector.data.CardDao
 import com.ricca.futacollector.data.CardSetEntity
 import com.ricca.futacollector.data.UserCardEntity
 import com.ricca.futacollector.data.api.RetrofitInstance
+import com.ricca.futacollector.data.api.SnapshotRetrofitInstance
 import com.ricca.futacollector.ui.screens.WishlistItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -54,6 +55,21 @@ class CollectionViewModel(
             if (now - lastUpdate > twentyFourHours) {
                 refreshMarketPrices()
                 prefs.edit().putLong("last_price_update", now).apply()
+            }
+        }
+
+        // Stessa idea del refresh prezzi qui sopra, ma per il database
+        // delle carte (nome/immagine/set). Lo snapshot su GitHub si
+        // aggiorna una volta a settimana, quindi controlliamo anche noi
+        // una volta a settimana, non più spesso.
+        viewModelScope.launch(Dispatchers.IO) {
+            val lastSync = prefs.getLong("last_db_sync", 0L)
+            val now = System.currentTimeMillis()
+            val sevenDays = 7 * 24 * 60 * 60 * 1000L
+
+            if (now - lastSync > sevenDays) {
+                syncCardDatabase()
+                prefs.edit().putLong("last_db_sync", now).apply()
             }
         }
     }
@@ -280,6 +296,125 @@ class CollectionViewModel(
             } catch (e: Exception) {
                 Log.e("SYNC", "ERRORE CRITICO: ${e.message}")
             }
+        }
+    }
+
+    fun syncCardDatabase() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                Log.d("SYNC_DB", "Scarico snapshot.json...")
+
+                val snapshot = SnapshotRetrofitInstance.api.getSnapshot()
+
+                Log.d("SYNC_DB", "Snapshot scaricato: ${snapshot.card_count} carte, ${snapshot.set_count} set. Scrivo nel DB...")
+
+                cardDao.syncFromSnapshot(snapshot)
+
+                Log.d("SYNC_DB", "Sync completata.")
+                _uiEvents.send("Database carte aggiornato: ${snapshot.card_count} carte")
+
+            } catch (e: Exception) {
+                Log.e("SYNC_DB", "ERRORE durante la sync: ${e.message}")
+                _uiEvents.send("Sync database fallita, riprovo più tardi")
+            }
+        }
+    }
+
+    fun forceSyncCardDatabase() {
+        viewModelScope.launch(Dispatchers.IO) {
+            syncCardDatabase()
+            prefs.edit().putLong("last_db_sync", System.currentTimeMillis()).apply()
+        }
+    }
+
+    // Da usare UNA VOLTA per ripulire i relitti del vecchio database
+    // (set duplicati, alt art doppie). Dopo averla usata una volta,
+    // puoi togliere il bottone che la richiama.
+    fun resetAndSyncCardDatabase() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val snapshot = SnapshotRetrofitInstance.api.getSnapshot()
+                cardDao.resetAndSyncFromSnapshot(snapshot)
+                prefs.edit().putLong("last_db_sync", System.currentTimeMillis()).apply()
+                _uiEvents.send("Catalogo carte ricostruito da zero: ${snapshot.card_count} carte")
+            } catch (e: Exception) {
+                Log.e("SYNC_DB", "ERRORE durante il reset: ${e.message}")
+                _uiEvents.send("Reset fallito, riprova più tardi")
+            }
+        }
+    }
+
+    // Da usare UNA VOLTA sola, poi puoi togliere il bottone che la
+    // richiama. Dati presi dal tuo vecchio collezione_one_piece.db.
+    // "OP14" è diventato "OP14EB04" perché è lo stesso set, solo con
+    // l'id giusto secondo lo schema dell'API.
+    fun restoreOriginalSetOrder() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val entries = listOf(
+                Triple("DON", -1, "immagini_ottimizzate/DON_Banner.webp"),
+                Triple("P", 0, "immagini_ottimizzate/promos.webp"),
+                Triple("OP01", 1, "immagini_ottimizzate/op_01.webp"),
+                Triple("ST01", 2, "immagini_ottimizzate/st_01.webp"),
+                Triple("ST02", 3, "immagini_ottimizzate/st_02.webp"),
+                Triple("ST03", 4, "immagini_ottimizzate/st_03.webp"),
+                Triple("ST04", 5, "immagini_ottimizzate/st_04.webp"),
+                Triple("ST05", 6, "immagini_ottimizzate/st_05.webp"),
+                Triple("OP02", 7, "immagini_ottimizzate/op_02.webp"),
+                Triple("ST06", 8, "immagini_ottimizzate/st_06.webp"),
+                Triple("ST07", 9, "immagini_ottimizzate/st_07.webp"),
+                Triple("OP03", 10, "immagini_ottimizzate/op_03.webp"),
+                Triple("ST08", 11, "immagini_ottimizzate/st_08.webp"),
+                Triple("ST09", 12, "immagini_ottimizzate/st_09.webp"),
+                Triple("OP04", 13, "immagini_ottimizzate/op_04.webp"),
+                Triple("ST10", 14, "immagini_ottimizzate/st_10.webp"),
+                Triple("OP05", 15, "immagini_ottimizzate/op_05.webp"),
+                Triple("ST11", 16, "immagini_ottimizzate/st_11.webp"),
+                Triple("ST12", 17, "immagini_ottimizzate/st_12.webp"),
+                Triple("OP06", 18, "immagini_ottimizzate/op_06.webp"),
+                Triple("ST13", 19, "immagini_ottimizzate/st_13.webp"),
+                Triple("EB01", 20, "immagini_ottimizzate/eb_01.webp"),
+                Triple("OP07", 21, "immagini_ottimizzate/op_07.webp"),
+                Triple("ST14", 22, "immagini_ottimizzate/st_14.webp"),
+                Triple("OP08", 23, "immagini_ottimizzate/op_08.webp"),
+                Triple("ST15", 24, "immagini_ottimizzate/st_15.webp"),
+                Triple("ST16", 25, "immagini_ottimizzate/st_16.webp"),
+                Triple("ST17", 26, "immagini_ottimizzate/st_17.webp"),
+                Triple("ST18", 27, "immagini_ottimizzate/st_18.webp"),
+                Triple("ST19", 28, "immagini_ottimizzate/st_19.webp"),
+                Triple("ST20", 29, "immagini_ottimizzate/st_20.webp"),
+                Triple("PRB01", 30, "immagini_ottimizzate/prb_01.webp"),
+                Triple("OP09", 31, "immagini_ottimizzate/op_09.webp"),
+                Triple("ST21", 32, "immagini_ottimizzate/st_21.webp"),
+                Triple("OP10", 33, "immagini_ottimizzate/op_10.webp"),
+                Triple("EB02", 34, "immagini_ottimizzate/eb_02.webp"),
+                Triple("ST23", 35, "immagini_ottimizzate/st_23.webp"),
+                Triple("ST24", 36, "immagini_ottimizzate/st_24.webp"),
+                Triple("ST25", 37, "immagini_ottimizzate/st_25.webp"),
+                Triple("ST26", 38, "immagini_ottimizzate/st_26.webp"),
+                Triple("ST27", 39, "immagini_ottimizzate/st_27.webp"),
+                Triple("ST28", 40, "immagini_ottimizzate/st_28.webp"),
+                Triple("OP11", 41, "immagini_ottimizzate/op_11.webp"),
+                Triple("OP12", 42, "immagini_ottimizzate/op_12.webp"),
+                Triple("ST22", 43, "immagini_ottimizzate/st_22.webp"),
+                Triple("LD01", 44, "immagini_ottimizzate/ld_01.webp"),
+                Triple("PRB02", 45, "immagini_ottimizzate/prb_02.webp"),
+                Triple("OP13", 46, "immagini_ottimizzate/op_13.webp"),
+                Triple("ST29", 47, "immagini_ottimizzate/st_29.webp"),
+                Triple("OP14EB04", 48, "immagini_ottimizzate/op14_eb04.webp"),
+                Triple("EB03", 49, "immagini_ottimizzate/eb_03.webp"),
+                Triple("OP15EB04", 50, "immagini_ottimizzate/op_15.webp"),
+                Triple("ST30", 51, "immagini_ottimizzate/st_30.webp"),
+                Triple("OP16", 52, "immagini_ottimizzate/op_16.webp"),
+                Triple("ST31", 53, "immagini_ottimizzate/st_31.webp"),
+                Triple("ST32", 54, "immagini_ottimizzate/st_32.webp"),
+                Triple("ST33", 55, "immagini_ottimizzate/st_33.webp"),
+                Triple("ST34", 56, "immagini_ottimizzate/st_34.webp"),
+                Triple("ST35", 57, "immagini_ottimizzate/st_35.webp"),
+                Triple("ST36", 58, "immagini_ottimizzate/st_36.webp"),
+                Triple("OP17", 59, "immagini_ottimizzate/op_17.webp")
+            )
+            cardDao.restoreOriginalSetOrder(entries)
+            _uiEvents.send("Ordine e copertine ripristinati ✅")
         }
     }
 
